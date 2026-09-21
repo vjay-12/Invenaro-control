@@ -4,13 +4,41 @@ import { getConfig } from "../../config.js";
 import { generateRandomToken, hashToken } from "./crypto.js";
 import { AdminUser, AdminSession } from "@prisma/client";
 
-export function getSessionCookieName(req: Request): string {
-  const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https";
+export interface CookieOptions {
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: "strict" | "lax" | "none";
+  path: string;
+  maxAge?: number;
+}
+
+export function isRequestSecure(req?: { secure?: boolean; headers?: Record<string, string | string[] | undefined> }): boolean {
+  if (!req) return false;
+  return Boolean(req.secure || req.headers?.["x-forwarded-proto"] === "https");
+}
+
+export function getSessionCookieName(req?: Request | { secure?: boolean; headers?: Record<string, string | string[] | undefined> } | boolean): string {
   const config = getConfig();
-  if (config.NODE_ENV === "production" || isSecure) {
-    return "__Host-invenaro_admin";
+  let isSecure = config.NODE_ENV === "production";
+  if (typeof req === "boolean") {
+    isSecure = req;
+  } else if (req) {
+    isSecure = isSecure || isRequestSecure(req);
   }
-  return "invenaro_admin";
+  return isSecure ? "__Secure-invenaro_admin" : "invenaro_admin";
+}
+
+export function buildSessionCookieOptions(params: {
+  isProductionOrSecure: boolean;
+  maxAgeMs?: number;
+}): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: params.isProductionOrSecure,
+    sameSite: "strict",
+    path: "/admin",
+    ...(params.maxAgeMs !== undefined ? { maxAge: params.maxAgeMs } : {}),
+  };
 }
 
 export function parseCookies(header: string | undefined): Record<string, string> {
@@ -29,30 +57,25 @@ export function parseCookies(header: string | undefined): Record<string, string>
 }
 
 export function setSessionCookie(res: Response, req: Request, token: string) {
-  const cookieName = getSessionCookieName(req);
-  const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https";
+  const isSecure = getConfig().NODE_ENV === "production" || isRequestSecure(req);
+  const cookieName = getSessionCookieName(isSecure);
   const config = getConfig();
-
-  res.cookie(cookieName, token, {
-    httpOnly: true,
-    secure: config.NODE_ENV === "production" || isSecure,
-    sameSite: "strict",
-    path: "/admin",
-    maxAge: config.ADMIN_SESSION_ABSOLUTE_HOURS * 3600 * 1000,
+  const options = buildSessionCookieOptions({
+    isProductionOrSecure: isSecure,
+    maxAgeMs: config.ADMIN_SESSION_ABSOLUTE_HOURS * 3600 * 1000,
   });
+
+  res.cookie(cookieName, token, options);
 }
 
 export function clearSessionCookie(res: Response, req: Request) {
-  const cookieName = getSessionCookieName(req);
-  const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https";
-  const config = getConfig();
-
-  res.clearCookie(cookieName, {
-    httpOnly: true,
-    secure: config.NODE_ENV === "production" || isSecure,
-    sameSite: "strict",
-    path: "/admin",
+  const isSecure = getConfig().NODE_ENV === "production" || isRequestSecure(req);
+  const cookieName = getSessionCookieName(isSecure);
+  const options = buildSessionCookieOptions({
+    isProductionOrSecure: isSecure,
   });
+
+  res.clearCookie(cookieName, options);
 }
 
 export async function createAdminSession(params: {
