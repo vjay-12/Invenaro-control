@@ -22,14 +22,14 @@ export function renderLoginPage(params: {
           <label for="email">Admin Email</label>
           <input type="email" id="email" name="email" required autofocus autocomplete="username" placeholder="admin@example.com">
         </div>
-        <div class="form-group" style="margin-bottom: 8px;">
+        <div class="form-group" style="margin-bottom: 6px;">
           <label for="password">Password</label>
           <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••••••">
         </div>
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
-          <a href="/admin/forgot" style="font-size: 13px; color: #38bdf8; text-decoration: none; font-weight: 500;">Forgot password?</a>
+        <div class="form-actions-row">
+          <a href="/admin/forgot" class="forgot-link">Forgot password?</a>
         </div>
-        <button type="submit" class="btn btn-block" style="padding: 11px 16px; font-size: 15px;">Sign In</button>
+        <button type="submit" class="btn btn-block auth-submit-btn">Sign In</button>
       </form>
     </div>
   `;

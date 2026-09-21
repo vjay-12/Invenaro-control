@@ -205,6 +205,32 @@ export function renderLayout(opts: LayoutOptions): string {
     }
     .flex-row { display: flex; gap: 12px; align-items: center; }
     .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 14px; }
+    .form-actions-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 10px;
+      margin-bottom: 28px;
+      width: 100%;
+    }
+    .forgot-link {
+      font-size: 13px;
+      color: #38bdf8;
+      text-decoration: none;
+      font-weight: 500;
+      margin-left: auto;
+      display: inline-block;
+    }
+    .forgot-link:hover {
+      text-decoration: underline;
+      color: #7dd3fc;
+    }
+    .auth-submit-btn {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 15px;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
