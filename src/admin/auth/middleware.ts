@@ -238,7 +238,7 @@ export async function adminAuthMiddleware(
   // Public unauthenticated routes
   const isPublicAuthRoute =
     path === "/login" ||
-    path === "/forgot" ||
+    path.startsWith("/forgot") ||
     path.startsWith("/reset") ||
     path.startsWith("/cron");
 

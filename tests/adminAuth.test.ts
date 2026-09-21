@@ -322,4 +322,61 @@ describe("Admin Authentication & Security Tests", () => {
     expect(newLoginRes.status).toBe(302);
     expect(newLoginRes.header.location).toBe("/admin/login/2fa");
   });
+
+  it("verifies 6-digit OTP code and resets password via /admin/forgot/verify", async () => {
+    const testAdminEmail = `otp-test-${Date.now()}@example.com`;
+    const admin = await prisma.adminUser.create({
+      data: {
+        email: testAdminEmail,
+        passwordHash: await hashPassword("OldPassword123!"),
+        mustChangePassword: false,
+        totpEnabled: true,
+      },
+    });
+
+    const testOtp = "654321";
+    const otpHash = hashToken(`${admin.id}:${testOtp}`);
+    await prisma.passwordResetToken.create({
+      data: {
+        adminId: admin.id,
+        tokenHash: otpHash,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        ip: "127.0.0.1",
+      },
+    });
+
+    // Test invalid OTP rejection
+    const failRes = await request(app)
+      .post("/admin/forgot/verify")
+      .send({
+        email: testAdminEmail,
+        code: "000000",
+        password: "NewBrandPassword456!",
+        confirmPassword: "NewBrandPassword456!",
+      });
+
+    expect(failRes.status).toBe(200);
+    expect(failRes.text).toContain("Invalid or expired verification code");
+
+    // Test valid OTP success
+    const successRes = await request(app)
+      .post("/admin/forgot/verify")
+      .send({
+        email: testAdminEmail,
+        code: testOtp,
+        password: "NewBrandPassword456!",
+        confirmPassword: "NewBrandPassword456!",
+      });
+
+    expect(successRes.status).toBe(200);
+    expect(successRes.text).toContain("Password reset successfully");
+
+    // Next login with new password requires 2FA
+    const loginRes = await request(app)
+      .post("/admin/login")
+      .send({ email: testAdminEmail, password: "NewBrandPassword456!" });
+
+    expect(loginRes.status).toBe(302);
+    expect(loginRes.header.location).toBe("/admin/login/2fa");
+  });
 });

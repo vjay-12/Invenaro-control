@@ -61,12 +61,14 @@ export function renderLogin2faPage(params: {
 export function renderForgotPasswordPage(params: {
   csrfToken?: string;
   message?: string;
+  error?: string;
 }): string {
   return html`
     <div class="auth-card">
       <h1 class="auth-title">Reset Password</h1>
-      <p class="auth-subtitle">Enter your admin email address to receive a secure password reset link.</p>
+      <p class="auth-subtitle">Enter your registered admin email to receive a 6-digit verification code.</p>
 
+      ${params.error ? raw(html`<div class="alert alert-error">${params.error}</div>`) : ""}
       ${params.message ? raw(html`<div class="alert alert-success">${params.message}</div>`) : ""}
 
       <form method="POST" action="/admin/forgot">
@@ -76,10 +78,51 @@ export function renderForgotPasswordPage(params: {
           <input type="email" id="email" name="email" required autofocus autocomplete="email" placeholder="admin@example.com">
         </div>
         <div style="margin-top: 24px;">
-          <button type="submit" class="btn btn-block" style="padding: 11px 16px; font-size: 15px;">Send Reset Link</button>
+          <button type="submit" class="btn btn-block auth-submit-btn">Send Verification Code</button>
         </div>
         <div style="margin-top: 20px; text-align: center;">
           <a href="/admin/login" style="font-size: 13px; color: #38bdf8;">Return to Sign In</a>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+export function renderForgotVerifyPage(params: {
+  email: string;
+  csrfToken?: string;
+  error?: string;
+  message?: string;
+}): string {
+  return html`
+    <div class="auth-card">
+      <h1 class="auth-title">Enter Verification Code</h1>
+      <p class="auth-subtitle">Enter the 6-digit code sent to <strong>${params.email}</strong> and choose a new password.</p>
+
+      ${params.error ? raw(html`<div class="alert alert-error">${params.error}</div>`) : ""}
+      ${params.message ? raw(html`<div class="alert alert-success">${params.message}</div>`) : ""}
+
+      <form method="POST" action="/admin/forgot/verify">
+        ${params.csrfToken ? raw(html`<input type="hidden" name="_csrf" value="${params.csrfToken}">`) : ""}
+        <input type="hidden" name="email" value="${params.email}">
+        <div class="form-group">
+          <label for="code">6-Digit Verification Code</label>
+          <input type="text" id="code" name="code" required autofocus maxlength="6" pattern="[0-9]{6}" placeholder="123456" autocomplete="one-time-code" class="mono" style="font-size: 20px; letter-spacing: 4px; text-align: center;">
+        </div>
+        <div class="form-group">
+          <label for="password">New Password (min 12 characters)</label>
+          <input type="password" id="password" name="password" required minlength="12" autocomplete="new-password" placeholder="••••••••••••">
+        </div>
+        <div class="form-group">
+          <label for="confirmPassword">Confirm New Password</label>
+          <input type="password" id="confirmPassword" name="confirmPassword" required minlength="12" autocomplete="new-password" placeholder="••••••••••••">
+        </div>
+        <div style="margin-top: 24px;">
+          <button type="submit" class="btn btn-block auth-submit-btn">Reset Password</button>
+        </div>
+        <div style="margin-top: 20px; display: flex; justify-content: space-between; font-size: 13px;">
+          <a href="/admin/forgot" style="color: #94a3b8;">Didn't receive code?</a>
+          <a href="/admin/login" style="color: #38bdf8;">Return to Sign In</a>
         </div>
       </form>
     </div>

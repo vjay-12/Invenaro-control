@@ -355,12 +355,28 @@ export function buildLicenseKeyReissuedEmail(params: {
 export function buildPasswordResetRequestedEmail(params: {
   resetUrl: string;
   ip: string;
+  otp?: string;
 }) {
-  const title = "Password Reset Requested";
+  const title = params.otp
+    ? `Password Reset Verification Code: ${params.otp}`
+    : "Password Reset Requested";
   const body = `
     <p>A password reset was requested for your Invenaro Control admin account.</p>
-    <p><a class="btn" href="${escapeHtml(params.resetUrl)}">Reset Password</a></p>
-    <p>This link is single-use and will expire in 30 minutes.</p>
+    ${
+      params.otp
+        ? `
+      <div style="background-color: #090d16; border: 2px dashed #38bdf8; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+        <div style="font-size: 13px; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Your 6-Digit Verification Code</div>
+        <div style="font-family: ui-monospace, monospace; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #38bdf8;">${escapeHtml(params.otp)}</div>
+        <div style="font-size: 12px; color: #64748b; margin-top: 8px;">Valid for 15 minutes</div>
+      </div>
+      <p>Enter the 6-digit code above on the verification screen to choose your new password.</p>
+      `
+        : ""
+    }
+    <p>Alternatively, you may reset your password directly by clicking below:</p>
+    <p><a class="btn" href="${escapeHtml(params.resetUrl)}">Reset Password Directly</a></p>
+    <p>This link and code are valid for 15 minutes and can only be used once.</p>
     <p><strong>IP Address:</strong> ${escapeHtml(params.ip)}</p>
     <p><em>Security note: Two-factor authentication (2FA) will still be required on your next login even after resetting your password.</em></p>
   `;

@@ -59,6 +59,7 @@ import {
   renderLoginPage,
   renderLogin2faPage,
   renderForgotPasswordPage,
+  renderForgotVerifyPage,
   renderResetPasswordPage,
   renderSetupPasswordPage,
   renderSetup2faPage,
@@ -326,12 +327,19 @@ adminRouter.get("/forgot", (req, res) => {
 adminRouter.post("/forgot", async (req, res) => {
   const email = String(req.body.email || "").trim().toLowerCase();
   const ip = req.adminAuth?.clientIp || "127.0.0.1";
+  const genericSuccess = "If that address is registered, a password reset link and 6-digit verification code have been sent to your email.";
 
   const allowed = await checkForgotRateLimit({ email, ip });
-  const genericSuccess = "If that address is registered, a password reset link has been sent to your email.";
-
   if (!allowed) {
-    sendHtml(req, res, "Forgot Password", renderForgotPasswordPage({ message: genericSuccess }));
+    sendHtml(
+      req,
+      res,
+      "Verify Reset Code",
+      renderForgotVerifyPage({
+        email,
+        message: genericSuccess,
+      })
+    );
     return;
   }
 
@@ -340,22 +348,36 @@ adminRouter.post("/forgot", async (req, res) => {
   });
 
   if (admin) {
-    const rawToken = generateRandomToken(32);
-    const tokenHash = hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    // Invalidate previous reset tokens for this admin
+    await prisma.passwordResetToken.deleteMany({
+      where: { adminId: admin.id },
+    }).catch(() => {});
 
-    await prisma.passwordResetToken.create({
-      data: {
-        adminId: admin.id,
-        tokenHash,
-        expiresAt,
-        ip,
-      },
+    // Generate direct reset link token (32 bytes) + 6-digit numeric OTP
+    const rawToken = generateRandomToken(32);
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await prisma.passwordResetToken.createMany({
+      data: [
+        {
+          adminId: admin.id,
+          tokenHash: hashToken(rawToken),
+          expiresAt,
+          ip,
+        },
+        {
+          adminId: admin.id,
+          tokenHash: hashToken(`${admin.id}:${otp}`),
+          expiresAt,
+          ip,
+        },
+      ],
     });
 
     const config = getConfig();
     const resetUrl = `${config.APP_BASE_URL}/admin/reset/${rawToken}`;
-    const emailPayload = buildPasswordResetRequestedEmail({ resetUrl, ip });
+    const emailPayload = buildPasswordResetRequestedEmail({ resetUrl, ip, otp });
 
     await sendAdminEmail({
       event: "password_reset_requested",
@@ -367,7 +389,152 @@ adminRouter.post("/forgot", async (req, res) => {
     });
   }
 
-  sendHtml(req, res, "Forgot Password", renderForgotPasswordPage({ message: genericSuccess }));
+  sendHtml(
+    req,
+    res,
+    "Verify Reset Code",
+    renderForgotVerifyPage({
+      email,
+      message: genericSuccess,
+    })
+  );
+});
+
+// GET /admin/forgot/verify
+adminRouter.get("/forgot/verify", (req, res) => {
+  const email = String(req.query.email || "").trim().toLowerCase();
+  const isSent = req.query.sent === "1";
+  sendHtml(
+    req,
+    res,
+    "Verify Reset Code",
+    renderForgotVerifyPage({
+      email,
+      message: isSent
+        ? "A 6-digit verification code has been dispatched to your email (valid for 15 minutes)."
+        : undefined,
+    })
+  );
+});
+
+// POST /admin/forgot/verify
+adminRouter.post("/forgot/verify", async (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const code = String(req.body.code || "").trim();
+  const password = String(req.body.password || "");
+  const confirmPassword = String(req.body.confirmPassword || "");
+  const ip = req.adminAuth?.clientIp || "127.0.0.1";
+  const userAgent = req.headers["user-agent"];
+
+  const admin = await prisma.adminUser.findUnique({
+    where: { email },
+  });
+
+  if (!admin) {
+    sendHtml(
+      req,
+      res,
+      "Verify Reset Code",
+      renderForgotVerifyPage({
+        email,
+        error: "Invalid or expired verification code.",
+      })
+    );
+    return;
+  }
+
+  const tokenHash = hashToken(`${admin.id}:${code}`);
+  const now = new Date();
+
+  const resetRecord = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+  });
+
+  if (!resetRecord || resetRecord.usedAt || resetRecord.expiresAt < now || resetRecord.adminId !== admin.id) {
+    sendHtml(
+      req,
+      res,
+      "Verify Reset Code",
+      renderForgotVerifyPage({
+        email,
+        error: "Invalid or expired verification code.",
+      })
+    );
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    sendHtml(
+      req,
+      res,
+      "Verify Reset Code",
+      renderForgotVerifyPage({
+        email,
+        error: "Passwords do not match.",
+      })
+    );
+    return;
+  }
+
+  const policy = validatePasswordPolicy(password, admin.email);
+  if (!policy.valid) {
+    sendHtml(
+      req,
+      res,
+      "Verify Reset Code",
+      renderForgotVerifyPage({
+        email,
+        error: policy.message,
+      })
+    );
+    return;
+  }
+
+  const newHash = await hashPassword(password);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.adminUser.update({
+      where: { id: admin.id },
+      data: {
+        passwordHash: newHash,
+        mustChangePassword: false,
+      },
+    });
+
+    await tx.adminSession.deleteMany({
+      where: { adminId: admin.id },
+    });
+
+    await tx.passwordResetToken.updateMany({
+      where: { adminId: admin.id },
+      data: { usedAt: now },
+    });
+  });
+
+  const emailPayload = buildPasswordChangedEmail({ ip, userAgent });
+  await sendAdminEmail({
+    event: "password_changed",
+    subject: emailPayload.subject,
+    text: emailPayload.text,
+    html: emailPayload.html,
+    entityType: "AdminUser",
+    entityId: admin.id,
+  });
+
+  sendHtml(
+    req,
+    res,
+    "Sign In",
+    renderLoginPage({
+      error: undefined,
+    }),
+    {
+      alert: {
+        type: "success",
+        message: "Password reset successfully! Please sign in with your new password.",
+      },
+    }
+  );
 });
 
 // GET /admin/reset/:token
