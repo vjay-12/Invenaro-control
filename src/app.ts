@@ -27,6 +27,9 @@ export function createApp() {
       directives: {
         defaultSrc: ["'none'"],
         styleSrc: [(req, res) => `'nonce-${(res as Response).locals.cspNonce}'`],
+        // Allow inline style attributes (e.g. style="margin: 0;") while keeping style elements nonce-only.
+        // Script execution remains strictly nonce-only with zero unsafe-inline.
+        styleSrcAttr: ["'unsafe-inline'"],
         scriptSrc: [(req, res) => `'nonce-${(res as Response).locals.cspNonce}'`],
         imgSrc: ["'self'", "data:"],
         formAction: ["'self'"],

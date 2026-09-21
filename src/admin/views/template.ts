@@ -272,6 +272,15 @@ export function renderLayout(opts: LayoutOptions): string {
   </div>
 
   <script${raw(nonceAttr)}>
+    document.querySelectorAll('form[data-confirm]').forEach(form => {
+      form.addEventListener('submit', (e) => {
+        const msg = form.getAttribute('data-confirm');
+        if (msg && !window.confirm(msg)) {
+          e.preventDefault();
+        }
+      });
+    });
+
     document.querySelectorAll('[data-copy]').forEach(btn => {
       btn.addEventListener('click', () => {
         const targetId = btn.getAttribute('data-copy');

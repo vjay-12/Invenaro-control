@@ -733,14 +733,14 @@ export function renderCustomerDetailPage(data: {
             <button type="submit" class="btn" style="background: #16a34a;">Reinstate License</button>
           </form>
         ` : html`
-          <form method="POST" action="/admin/customers/${c.id}/suspend" style="margin: 0;" onsubmit="return confirm('Are you sure you want to suspend this license? Client verifications will return suspended status.');">
+          <form method="POST" action="/admin/customers/${c.id}/suspend" style="margin: 0;" data-confirm="Are you sure you want to suspend this license? Client verifications will return suspended status.">
             <input type="hidden" name="_csrf" value="${data.csrfToken}">
             <button type="submit" class="btn btn-danger">Suspend License</button>
           </form>
         `}
 
         <!-- Reissue Key -->
-        <form method="POST" action="/admin/customers/${c.id}/reissue-key" style="margin: 0;" onsubmit="return confirm('WARNING: Reissuing the license key will permanently and immediately invalidate the current active key! Continue?');">
+        <form method="POST" action="/admin/customers/${c.id}/reissue-key" style="margin: 0;" data-confirm="WARNING: Reissuing the license key will permanently and immediately invalidate the current active key! Continue?">
           <input type="hidden" name="_csrf" value="${data.csrfToken}">
           <button type="submit" class="btn btn-danger" style="background: #b91c1c;">Reissue Lost Key</button>
         </form>

@@ -283,4 +283,45 @@ describe("admin views rendering (no raw escaped HTML)", () => {
     expect(fullHtml).not.toContain("&lt;table");
     expect(fullHtml).toContain('<a href="/admin/customers" class="active">Customers</a>');
   });
+
+  it("asserts no rendered admin page contains inline onsubmit, onclick or any on* event handler attribute", () => {
+    const pages = [
+      renderDashboardPage({
+        customerCount: 1,
+        licenseCounts: { active: 1, grace: 0, expired: 0, suspended: 0 },
+        expiringLicenses: [],
+        silentDeployments: [],
+      }).value,
+      renderCustomerListPage({
+        customers: [],
+        page: 1,
+        totalPages: 1,
+        totalCount: 0,
+      }).value,
+      renderCustomerDetailPage({
+        customer: { id: "c1", companyName: "Clean Corp", status: "active" },
+        license: { id: "l1", plan: "business", status: "active", expiresAt: new Date(), graceDays: 14, keyPrefix: "INV-DEMO" },
+        computedStatus: "active",
+        effectiveModules: {},
+        overrides: {},
+        deployments: [],
+        auditLogs: [],
+        csrfToken: "csrf-token",
+      }).value,
+      renderAuditLogsPage({ logs: [], page: 1, totalPages: 1, totalCount: 0 }).value,
+      renderNotificationsPage({ notifications: [], page: 1, totalPages: 1, totalCount: 0 }).value,
+      renderAccountPage({
+        adminEmail: "admin@example.com",
+        sessions: [],
+        currentSessionId: "s1",
+        csrfToken: "csrf-token",
+      }).value,
+    ];
+
+    for (const pageHtml of pages) {
+      expect(pageHtml).not.toContain("onsubmit=");
+      expect(pageHtml).not.toContain("onclick=");
+      expect(pageHtml).not.toMatch(/<[a-z0-9_-]+[^>]*\s+on[a-z]+\s*=/i);
+    }
+  });
 });
