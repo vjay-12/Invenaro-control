@@ -61,17 +61,19 @@ export function verifyRequestOrigin(req: Request): boolean {
     const config = getConfig();
     try {
       const originUrl = new URL(origin);
-      const appBaseUrl = new URL(config.APP_BASE_URL);
 
-      // Match against configured APP_BASE_URL origin
-      if (originUrl.origin === appBaseUrl.origin) {
-        return true;
-      }
-
-      // In local development, also allow matching Host header
+      // In local development or reverse proxy, check matching Host header
       const host = req.headers["host"];
       if (host && originUrl.host === host) {
         return true;
+      }
+
+      // Match against configured APP_BASE_URL origin
+      if (config.APP_BASE_URL) {
+        const appBaseUrl = new URL(config.APP_BASE_URL);
+        if (originUrl.origin === appBaseUrl.origin) {
+          return true;
+        }
       }
 
       return false;
