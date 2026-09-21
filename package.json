@@ -1,0 +1,45 @@
+{
+  "name": "invenaro-control",
+  "version": "0.1.0",
+  "description": "Invenaro license service, customer registry, and signing authority",
+  "main": "api/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/src/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "cli": "tsx cli/index.ts",
+    "keygen": "tsx scripts/generate-signing-key.ts",
+    "postinstall": "node -e \"const fs=require('fs'); if(fs.existsSync('node_modules/@rollup/wasm-node/dist/native.js')){ try{ fs.copyFileSync('node_modules/@rollup/wasm-node/dist/native.js', 'node_modules/rollup/dist/native.js'); fs.cpSync('node_modules/@rollup/wasm-node/dist/wasm-node', 'node_modules/rollup/dist/wasm-node', {recursive:true, force:true}); }catch(e){} }\""
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "jose": "^5.9.6",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@rollup/wasm-node": "^4.63.4",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.9",
+    "@types/supertest": "^7.2.1",
+    "prisma": "^6.4.1",
+    "supertest": "^7.2.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.7"
+  },
+  "overrides": {
+    "rollup": "npm:@rollup/wasm-node@4.63.4"
+  }
+}

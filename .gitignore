@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Production output
+dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel/
+
+# Cryptographic keys and certificates
+*.pem
+*.key
+
+# Test coverage
+coverage/
+
+# Logs and system files
+*.log
+.DS_Store

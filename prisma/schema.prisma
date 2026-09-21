@@ -1,0 +1,125 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum CustomerStatus {
+  active
+  suspended
+  cancelled
+}
+
+enum LicensePlan {
+  basic
+  business
+  enterprise
+}
+
+enum LicenseStatus {
+  active
+  suspended
+  revoked
+}
+
+model Customer {
+  id          String         @id @default(cuid())
+  companyName String         @map("company_name")
+  status      CustomerStatus @default(active)
+  notes       String?
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  licenses    License[]
+  deployments Deployment[]
+
+  @@map("customers")
+}
+
+model License {
+  id         String        @id @default(cuid())
+  customerId String        @map("customer_id")
+  keyHash    String        @unique @map("key_hash")
+  keyPrefix  String        @map("key_prefix")
+  plan       LicensePlan   @default(basic)
+  status     LicenseStatus @default(active)
+  expiresAt  DateTime      @map("expires_at")
+  graceDays  Int           @default(14) @map("grace_days")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  modules    LicenseModule[]
+
+  @@index([keyPrefix])
+  @@index([customerId])
+  @@map("licenses")
+}
+
+model LicenseModule {
+  id        String   @id @default(cuid())
+  licenseId String   @map("license_id")
+  module    String
+  enabled   Boolean
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  license   License  @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@unique([licenseId, module])
+  @@index([licenseId])
+  @@map("license_modules")
+}
+
+model Deployment {
+  id              String    @id @default(cuid())
+  customerId      String    @map("customer_id")
+  domain          String
+  allowedDomains  String[]  @default([]) @map("allowed_domains")
+  vercelProjectId String?   @map("vercel_project_id")
+  neonProjectId   String?   @map("neon_project_id")
+  region          String?
+  appVersion      String?   @map("app_version")
+  rolloutWave     Int       @default(1) @map("rollout_wave")
+  autoDeploy      Boolean   @default(true) @map("auto_deploy")
+  lastSeenAt      DateTime? @map("last_seen_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([domain])
+  @@map("deployments")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      String
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model VerificationThrottle {
+  id          String   @id @default(cuid())
+  keyPrefix   String   @map("key_prefix")
+  windowStart DateTime @map("window_start")
+  callCount   Int      @default(1) @map("call_count")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([keyPrefix, windowStart])
+  @@index([keyPrefix])
+  @@map("verification_throttles")
+}
