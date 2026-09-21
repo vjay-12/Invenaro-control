@@ -1,5 +1,5 @@
-import { prisma } from "../../src/db.js";
-import { recordAuditLog } from "../../src/services/audit.js";
+import os from "node:os";
+import { reinstateLicense } from "../../src/services/adminActions.js";
 
 export async function licenseReinstateCommand(id: string) {
   if (!id) {
@@ -7,27 +7,12 @@ export async function licenseReinstateCommand(id: string) {
     process.exit(1);
   }
 
+  const actor = `cli:${os.userInfo().username || process.env.USERNAME || process.env.USER || "local"}`;
+
   try {
-    const existing = await prisma.license.findUnique({
-      where: { id },
-    });
-
-    if (!existing) {
-      console.error(`❌ License not found with ID: ${id}`);
-      process.exit(1);
-    }
-
-    const updated = await prisma.license.update({
-      where: { id },
-      data: { status: "active" },
-    });
-
-    await recordAuditLog({
-      action: "license:reinstate",
-      entityType: "License",
-      entityId: id,
-      before: { status: existing.status },
-      after: { status: updated.status },
+    await reinstateLicense({
+      licenseId: id,
+      actor,
     });
 
     console.log(`▶️ License ${id} has been reinstated to ACTIVE.`);

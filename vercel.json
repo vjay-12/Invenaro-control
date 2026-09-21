@@ -5,5 +5,12 @@
       "source": "/(.*)",
       "destination": "/api/index.ts"
     }
+  ],
+  "crons": [
+    {
+      "path": "/admin/cron/cleanup",
+      "schedule": "0 0 * * *"
+    }
   ]
 }
+

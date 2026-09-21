@@ -27,15 +27,18 @@ enum LicenseStatus {
 }
 
 model Customer {
-  id          String         @id @default(cuid())
-  companyName String         @map("company_name")
-  status      CustomerStatus @default(active)
-  notes       String?
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
+  id           String         @id @default(cuid())
+  companyName  String         @map("company_name")
+  status       CustomerStatus @default(active)
+  notes        String?
+  contactName  String?        @map("contact_name")
+  contactEmail String?        @map("contact_email")
+  contactPhone String?        @map("contact_phone")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
 
-  licenses    License[]
-  deployments Deployment[]
+  licenses     License[]
+  deployments  Deployment[]
 
   @@map("customers")
 }
@@ -122,4 +125,86 @@ model VerificationThrottle {
   @@unique([keyPrefix, windowStart])
   @@index([keyPrefix])
   @@map("verification_throttles")
+}
+
+model AdminUser {
+  id                 String               @id @default(cuid())
+  email              String               @unique
+  passwordHash       String               @map("password_hash")
+  mustChangePassword Boolean              @default(true) @map("must_change_password")
+  totpSecretEnc      String?              @map("totp_secret_enc")
+  totpEnabled        Boolean              @default(false) @map("totp_enabled")
+  recoveryCodeHashes Json                 @default("[]") @map("recovery_code_hashes")
+  lockedUntil        DateTime?            @map("locked_until")
+  lastLoginAt        DateTime?            @map("last_login_at")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  sessions           AdminSession[]
+  resetTokens        PasswordResetToken[]
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id                 String    @id @default(cuid())
+  adminId            String    @map("admin_id")
+  tokenHash          String    @unique @map("token_hash")
+  stage              String    // "pending_2fa" | "active"
+  csrfToken          String    @map("csrf_token")
+  ip                 String
+  userAgent          String?   @map("user_agent")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  lastSeenAt         DateTime  @default(now()) @map("last_seen_at")
+  idleExpiresAt      DateTime  @map("idle_expires_at")
+  absoluteExpiresAt  DateTime  @map("absolute_expires_at")
+  attempts           Int       @default(0)
+
+  admin              AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("admin_sessions")
+}
+
+model AdminLoginAttempt {
+  id          String   @id @default(cuid())
+  email       String
+  ip          String
+  success     Boolean
+  attemptedAt DateTime @default(now()) @map("attempted_at")
+
+  @@index([email, attemptedAt])
+  @@index([ip, attemptedAt])
+  @@map("admin_login_attempts")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  adminId   String    @map("admin_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  ip        String
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("password_reset_tokens")
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  event      String
+  toEmail    String   @map("to_email")
+  subject    String
+  status     String   // "sent" | "failed" | "skipped"
+  error      String?
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([event])
+  @@index([createdAt])
+  @@map("notifications")
 }

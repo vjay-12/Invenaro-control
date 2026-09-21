@@ -217,3 +217,12 @@ To rotate signing keys without interrupting running customer deployments:
 2. **Database Restores**: Perform periodic restore drills in Neon to test point-in-time recovery.
 3. **WAF Protection**: In production, configure Vercel Web Application Firewall (WAF) rate limiting on `/v1/licenses/verify` alongside the built-in database throttle.
 4. **Read-Only Expiry**: Invenaro guarantees customer data safety. Expired licenses put the application into read-only mode — **customer data is never deleted or locked out**.
+
+---
+
+## 7. Admin Web UI & Management Panel
+
+The administrative panel is mounted under `/admin` and provides web-based management for customers, licenses, plan upgrades/downgrades, add-on modules, audit trails, and security settings with mandatory 2FA and email notifications.
+
+For complete documentation on setup, configuration, CLI recovery commands, and architecture, see [Admin Web UI Documentation](docs/admin-ui.md).
+
