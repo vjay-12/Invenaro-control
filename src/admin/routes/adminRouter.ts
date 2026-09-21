@@ -54,7 +54,7 @@ import {
 } from "../../services/adminActions.js";
 import { computeLicenseStatus } from "../../services/statusLogic.js";
 import { computeEffectiveModules } from "../../services/planDefaults.js";
-import { renderLayout } from "../views/template.js";
+import { renderLayout, RawString } from "../views/template.js";
 import {
   renderLoginPage,
   renderLogin2faPage,
@@ -80,7 +80,7 @@ export const adminRouter = Router();
 // Apply admin auth and stage enforcement middleware to all /admin routes
 adminRouter.use(adminAuthMiddleware);
 
-function sendHtml(req: Request, res: Response, title: string, content: string, extra?: {
+function sendHtml(req: Request, res: Response, title: string, content: string | RawString, extra?: {
   alert?: { type: "success" | "error" | "warning"; message: string };
 }) {
   const auth = req.adminAuth;

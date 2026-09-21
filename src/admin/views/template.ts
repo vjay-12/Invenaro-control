@@ -20,20 +20,26 @@ export function escapeHtml(str: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-export function html(strings: TemplateStringsArray, ...values: unknown[]): string {
+function processInterpolatedValue(val: unknown): string {
+  if (val === null || val === undefined || val === false) {
+    return "";
+  }
+  if (Array.isArray(val)) {
+    return val.map(processInterpolatedValue).join("");
+  }
+  if (val instanceof RawString) {
+    return val.value;
+  }
+  return escapeHtml(val);
+}
+
+export function html(strings: TemplateStringsArray, ...values: unknown[]): RawString {
   let result = strings[0];
   for (let i = 0; i < values.length; i++) {
-    const val = values[i];
-    if (Array.isArray(val)) {
-      result += val.map((item) => (item instanceof RawString ? item.value : escapeHtml(item))).join("");
-    } else if (val instanceof RawString) {
-      result += val.value;
-    } else {
-      result += escapeHtml(val);
-    }
+    result += processInterpolatedValue(values[i]);
     result += strings[i + 1];
   }
-  return result;
+  return new RawString(result);
 }
 
 export interface LayoutOptions {
@@ -257,12 +263,12 @@ export function renderLayout(opts: LayoutOptions): string {
   `) : ""}
 
   <div class="container">
-    ${opts.alert ? raw(html`
+    ${opts.alert ? html`
       <div class="alert alert-${opts.alert.type}">
         ${opts.alert.message}
       </div>
-    `) : ""}
-    ${raw(contentStr)}
+    ` : ""}
+    ${opts.content}
   </div>
 
   <script${raw(nonceAttr)}>
@@ -282,5 +288,5 @@ export function renderLayout(opts: LayoutOptions): string {
     });
   </script>
 </body>
-</html>`;
+</html>`.value;
 }

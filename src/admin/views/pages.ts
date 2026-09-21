@@ -1,4 +1,4 @@
-import { html, raw } from "./template.js";
+import { html, raw, RawString } from "./template.js";
 import { MODULE_NAMES } from "../../contract/license-token.js";
 
 // ----------------------------------------------------------------------
@@ -8,7 +8,7 @@ import { MODULE_NAMES } from "../../contract/license-token.js";
 export function renderLoginPage(params: {
   csrfToken?: string;
   error?: string;
-}): string {
+}): RawString {
   return html`
     <div class="auth-card">
       <h1 class="auth-title">Admin Sign In</h1>
@@ -38,7 +38,7 @@ export function renderLoginPage(params: {
 export function renderLogin2faPage(params: {
   csrfToken?: string;
   error?: string;
-}): string {
+}): RawString {
   return html`
     <div class="auth-card">
       <h1 class="auth-title">Two-Factor Authentication</h1>
@@ -62,7 +62,7 @@ export function renderForgotPasswordPage(params: {
   csrfToken?: string;
   message?: string;
   error?: string;
-}): string {
+}): RawString {
   return html`
     <div class="auth-card">
       <h1 class="auth-title">Reset Password</h1>
@@ -93,7 +93,7 @@ export function renderForgotVerifyPage(params: {
   csrfToken?: string;
   error?: string;
   message?: string;
-}): string {
+}): RawString {
   return html`
     <div class="auth-card">
       <h1 class="auth-title">Enter Verification Code</h1>
@@ -133,7 +133,7 @@ export function renderResetPasswordPage(params: {
   token: string;
   csrfToken?: string;
   error?: string;
-}): string {
+}): RawString {
   return html`
     <div class="auth-card">
       <h1 class="auth-title">Choose New Password</h1>
@@ -162,7 +162,7 @@ export function renderResetPasswordPage(params: {
 export function renderSetupPasswordPage(params: {
   csrfToken: string;
   error?: string;
-}): string {
+}): RawString {
   return html`
     <div class="auth-card">
       <h1 class="auth-title">Set Initial Password</h1>
@@ -193,7 +193,7 @@ export function renderSetup2faPage(params: {
   qrDataUri: string;
   secretManual: string;
   error?: string;
-}): string {
+}): RawString {
   return html`
     <div class="auth-card" style="max-width: 480px;">
       <h1 class="auth-title">Enroll in Two-Factor Authentication</h1>
@@ -227,7 +227,7 @@ export function renderSetup2faPage(params: {
 
 export function renderSetupRecoveryCodesPage(params: {
   recoveryCodes: string[];
-}): string {
+}): RawString {
   const codesFormatted = params.recoveryCodes.join("\n");
   return html`
     <div class="auth-card" style="max-width: 540px;">
@@ -278,7 +278,7 @@ export interface DashboardData {
   }>;
 }
 
-export function renderDashboardPage(data: DashboardData): string {
+export function renderDashboardPage(data: DashboardData): RawString {
   return html`
     <div class="card-header" style="border: none; padding: 0; margin-bottom: 24px;">
       <div>
@@ -401,7 +401,7 @@ export function renderCustomerListPage(data: {
   search?: string;
   planFilter?: string;
   statusFilter?: string;
-}): string {
+}): RawString {
   return html`
     <div class="card-header" style="border: none; padding: 0; margin-bottom: 24px;">
       <div>
@@ -487,7 +487,7 @@ export function renderCustomerNewPage(params: {
   csrfToken: string;
   error?: string;
   formData?: Record<string, string>;
-}): string {
+}): RawString {
   const d = new Date();
   d.setFullYear(d.getFullYear() + 1);
   const defaultExpiry = d.toISOString().slice(0, 10);
@@ -573,7 +573,7 @@ export function renderCustomerCreatedSuccessPage(params: {
   deployment: { domain: string };
   license: { id: string; plan: string; expiresAt: Date; keyPrefix: string };
   plainLicenseKey: string;
-}): string {
+}): RawString {
   return html`
     <div style="max-width: 680px; margin: 40px auto;">
       <div class="alert alert-warning" style="font-size: 15px;">
@@ -627,7 +627,7 @@ export function renderReissuedKeySuccessPage(params: {
   customer: { id: string; companyName: string };
   license: { id: string; keyPrefix: string };
   plainLicenseKey: string;
-}): string {
+}): RawString {
   return html`
     <div style="max-width: 680px; margin: 40px auto;">
       <div class="alert alert-warning">
@@ -658,7 +658,7 @@ export function renderCustomerDetailPage(data: {
   csrfToken: string;
   error?: string;
   success?: string;
-}): string {
+}): RawString {
   const c = data.customer;
   const l = data.license;
 
@@ -876,7 +876,7 @@ export function renderAuditLogsPage(data: {
   totalPages: number;
   totalCount: number;
   entityFilter?: string;
-}): string {
+}): RawString {
   return html`
     <div class="card-header" style="border: none; padding: 0; margin-bottom: 24px;">
       <div>
@@ -946,7 +946,7 @@ export function renderNotificationsPage(data: {
   page: number;
   totalPages: number;
   totalCount: number;
-}): string {
+}): RawString {
   return html`
     <div class="card-header" style="border: none; padding: 0; margin-bottom: 24px;">
       <div>
@@ -1011,7 +1011,7 @@ export function renderAccountPage(data: {
   csrfToken: string;
   error?: string;
   success?: string;
-}): string {
+}): RawString {
   return html`
     <div class="card-header" style="border: none; padding: 0; margin-bottom: 24px;">
       <div>
