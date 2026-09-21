@@ -19,7 +19,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "cli": "tsx cli/index.ts",
     "keygen": "tsx scripts/generate-signing-key.ts",
-    "postinstall": "node -e \"const fs=require('fs'); if(fs.existsSync('node_modules/@rollup/wasm-node/dist/native.js')){ try{ fs.copyFileSync('node_modules/@rollup/wasm-node/dist/native.js', 'node_modules/rollup/dist/native.js'); fs.cpSync('node_modules/@rollup/wasm-node/dist/wasm-node', 'node_modules/rollup/dist/wasm-node', {recursive:true, force:true}); }catch(e){} }\""
+    "postinstall": "prisma generate && node -e \"const fs=require('fs'); if(fs.existsSync('node_modules/@rollup/wasm-node/dist/native.js')){ try{ fs.copyFileSync('node_modules/@rollup/wasm-node/dist/native.js', 'node_modules/rollup/dist/native.js'); fs.cpSync('node_modules/@rollup/wasm-node/dist/wasm-node', 'node_modules/rollup/dist/wasm-node', {recursive:true, force:true}); }catch(e){} }\""
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
