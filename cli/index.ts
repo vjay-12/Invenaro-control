@@ -10,6 +10,7 @@ import { licenseSuspendCommand } from "./commands/licenseSuspend.js";
 import { licenseReinstateCommand } from "./commands/licenseReinstate.js";
 import { deploymentSetCommand } from "./commands/deploymentSet.js";
 import { listCustomersCommand } from "./commands/listCustomers.js";
+import { emailTestCommand } from "./commands/emailTest.js";
 
 const program = new Command();
 
@@ -92,5 +93,11 @@ program
   .command("list:customers")
   .description("List all customers, licenses, and deployments")
   .action(() => listCustomersCommand());
+
+// email:test
+program
+  .command("email:test")
+  .description("Send a test verification email to ADMIN_EMAIL over Gmail SMTP")
+  .action(() => emailTestCommand());
 
 program.parse(process.argv);
