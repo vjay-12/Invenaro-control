@@ -1,5 +1,5 @@
-import { prisma } from "../../src/db.js";
-import { recordAuditLog } from "../../src/services/audit.js";
+import os from "node:os";
+import { suspendLicense } from "../../src/services/adminActions.js";
 
 export async function licenseSuspendCommand(id: string) {
   if (!id) {
@@ -7,27 +7,12 @@ export async function licenseSuspendCommand(id: string) {
     process.exit(1);
   }
 
+  const actor = `cli:${os.userInfo().username || process.env.USERNAME || process.env.USER || "local"}`;
+
   try {
-    const existing = await prisma.license.findUnique({
-      where: { id },
-    });
-
-    if (!existing) {
-      console.error(`❌ License not found with ID: ${id}`);
-      process.exit(1);
-    }
-
-    const updated = await prisma.license.update({
-      where: { id },
-      data: { status: "suspended" },
-    });
-
-    await recordAuditLog({
-      action: "license:suspend",
-      entityType: "License",
-      entityId: id,
-      before: { status: existing.status },
-      after: { status: updated.status },
+    await suspendLicense({
+      licenseId: id,
+      actor,
     });
 
     console.log(`⏸️ License ${id} has been suspended.`);

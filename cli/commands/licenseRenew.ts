@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { prisma } from "../../src/db.js";
-import { recordAuditLog } from "../../src/services/audit.js";
+import os from "node:os";
+import { renewLicense } from "../../src/services/adminActions.js";
 
 const LicenseRenewSchema = z.object({
   id: z.string().min(1, "License ID is required"),
@@ -19,28 +19,13 @@ export async function licenseRenewCommand(id: string, options: { expires?: strin
   }
 
   const { id: licenseId, expires } = parsed.data;
+  const actor = `cli:${os.userInfo().username || process.env.USERNAME || process.env.USER || "local"}`;
 
   try {
-    const existing = await prisma.license.findUnique({
-      where: { id: licenseId },
-    });
-
-    if (!existing) {
-      console.error(`❌ License not found with ID: ${licenseId}`);
-      process.exit(1);
-    }
-
-    const updated = await prisma.license.update({
-      where: { id: licenseId },
-      data: { expiresAt: expires },
-    });
-
-    await recordAuditLog({
-      action: "license:renew",
-      entityType: "License",
-      entityId: licenseId,
-      before: { expiresAt: existing.expiresAt },
-      after: { expiresAt: updated.expiresAt },
+    const updated = await renewLicense({
+      licenseId,
+      expiresAt: expires,
+      actor,
     });
 
     console.log(

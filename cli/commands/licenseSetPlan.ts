@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { prisma } from "../../src/db.js";
-import { recordAuditLog } from "../../src/services/audit.js";
-import { LicensePlan } from "@prisma/client";
+import os from "node:os";
+import { changePlan } from "../../src/services/adminActions.js";
 
 const SetPlanSchema = z.object({
   id: z.string().min(1, "License ID is required"),
@@ -19,31 +18,16 @@ export async function licenseSetPlanCommand(id: string, plan: string) {
   }
 
   const { id: licenseId, plan: newPlan } = parsed.data;
+  const actor = `cli:${os.userInfo().username || process.env.USERNAME || process.env.USER || "local"}`;
 
   try {
-    const existing = await prisma.license.findUnique({
-      where: { id: licenseId },
+    const updated = await changePlan({
+      licenseId,
+      plan: newPlan,
+      actor,
     });
 
-    if (!existing) {
-      console.error(`❌ License not found with ID: ${licenseId}`);
-      process.exit(1);
-    }
-
-    const updated = await prisma.license.update({
-      where: { id: licenseId },
-      data: { plan: newPlan as LicensePlan },
-    });
-
-    await recordAuditLog({
-      action: "license:set-plan",
-      entityType: "License",
-      entityId: licenseId,
-      before: { plan: existing.plan },
-      after: { plan: updated.plan },
-    });
-
-    console.log(`✅ License ${licenseId} plan updated: ${existing.plan} -> ${updated.plan}`);
+    console.log(`✅ License ${licenseId} plan updated to: ${updated.plan}`);
   } catch (error) {
     console.error("❌ Failed to update license plan:", error);
     process.exit(1);

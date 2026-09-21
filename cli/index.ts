@@ -11,6 +11,12 @@ import { licenseReinstateCommand } from "./commands/licenseReinstate.js";
 import { deploymentSetCommand } from "./commands/deploymentSet.js";
 import { listCustomersCommand } from "./commands/listCustomers.js";
 import { emailTestCommand } from "./commands/emailTest.js";
+import {
+  adminCreateCommand,
+  adminResetPasswordCommand,
+  adminDisable2faCommand,
+  adminListCommand,
+} from "./commands/adminCommands.js";
 
 const program = new Command();
 
@@ -19,13 +25,16 @@ program
   .description("Invenaro Control - Licensing and Customer Administration CLI")
   .version("0.1.0");
 
-// customer:create --name --domain [--notes]
+// customer:create --name --domain [--notes] [--contact-name] [--contact-email] [--contact-phone]
 program
   .command("customer:create")
   .description("Register a new customer with their primary domain")
   .requiredOption("--name <name>", "Company name")
   .requiredOption("--domain <domain>", "Primary customer deployment domain")
   .option("--notes <notes>", "Optional notes")
+  .option("--contact-name <name>", "Contact person name")
+  .option("--contact-email <email>", "Contact email address")
+  .option("--contact-phone <phone>", "Contact phone number")
   .action((opts) => customerCreateCommand(opts));
 
 // license:create --customer <id> --plan <plan> --expires <YYYY-MM-DD> [--grace 14]
@@ -99,5 +108,34 @@ program
   .command("email:test")
   .description("Send a test verification email to ADMIN_EMAIL over Gmail SMTP")
   .action(() => emailTestCommand());
+
+// admin:create --email <email> [--force-additional]
+program
+  .command("admin:create")
+  .description("Register a new administrator account with a temporary password")
+  .requiredOption("--email <email>", "Administrator email address")
+  .option("--force-additional", "Allow creating additional administrators", false)
+  .action((opts) => adminCreateCommand(opts));
+
+// admin:reset-password --email <email>
+program
+  .command("admin:reset-password")
+  .description("Reset an administrator's password to a temporary password and revoke sessions")
+  .requiredOption("--email <email>", "Administrator email address")
+  .action((opts) => adminResetPasswordCommand(opts));
+
+// admin:disable-2fa --email <email> --yes
+program
+  .command("admin:disable-2fa")
+  .description("Emergency recovery command to disable 2FA for an administrator")
+  .requiredOption("--email <email>", "Administrator email address")
+  .option("--yes", "Confirmation flag to execute 2FA removal", false)
+  .action((opts) => adminDisable2faCommand(opts));
+
+// admin:list
+program
+  .command("admin:list")
+  .description("List all registered administrators and their security statuses")
+  .action(() => adminListCommand());
 
 program.parse(process.argv);
