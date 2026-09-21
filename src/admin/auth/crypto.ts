@@ -106,3 +106,16 @@ export function decryptAesGcm(cipherPayload: string, base64Key?: string): string
 
   return decrypted;
 }
+
+/**
+ * Compares two strings in constant time to prevent timing attacks.
+ */
+export function constantTimeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}

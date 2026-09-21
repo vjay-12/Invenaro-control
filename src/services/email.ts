@@ -19,6 +19,7 @@ export function sanitizeSubject(subject: string): string {
 export interface SendAdminEmailParams {
   event: string;
   subject: string;
+  subjectForLog?: string;
   text: string;
   html: string;
   entityType?: string;
@@ -59,6 +60,7 @@ export async function sendAdminEmail(
   const config = getConfig();
   const toEmail = config.ADMIN_EMAIL || "unconfigured@example.com";
   const fullSubject = `[Invenaro Control] ${sanitizeSubject(params.subject)}`;
+  const fullSubjectForLog = `[Invenaro Control] ${sanitizeSubject(params.subjectForLog || params.subject)}`;
 
   // Skip if emails are disabled or unconfigured
   if (
@@ -72,7 +74,7 @@ export async function sendAdminEmail(
         data: {
           event: params.event,
           toEmail,
-          subject: fullSubject,
+          subject: fullSubjectForLog,
           status: "skipped",
           error: !config.EMAIL_ENABLED
             ? "EMAIL_ENABLED is false"
@@ -104,7 +106,7 @@ export async function sendAdminEmail(
       data: {
         event: params.event,
         toEmail,
-        subject: fullSubject,
+        subject: fullSubjectForLog,
         status: "sent",
         entityType: params.entityType,
         entityId: params.entityId,
@@ -114,10 +116,11 @@ export async function sendAdminEmail(
     return { status: "sent" };
   } catch (err: unknown) {
     const rawMsg = err instanceof Error ? err.message : String(err);
-    // Sanitize any password or secret strings if present in error
+    // Sanitize any password, reset codes, or secret strings if present in error
     const redactedError = rawMsg
       .replace(new RegExp(config.SMTP_PASS || "____never____", "gi"), "[REDACTED]")
       .replace(/INV-[A-Z0-9-]{24}/gi, "[REDACTED_KEY]")
+      .replace(/\b\d{6}\b/g, "[REDACTED_CODE]")
       .slice(0, 500);
 
     try {
@@ -125,7 +128,7 @@ export async function sendAdminEmail(
         data: {
           event: params.event,
           toEmail,
-          subject: fullSubject,
+          subject: fullSubjectForLog,
           status: "failed",
           error: redactedError,
           entityType: params.entityType,
@@ -357,9 +360,7 @@ export function buildPasswordResetRequestedEmail(params: {
   ip: string;
   otp?: string;
 }) {
-  const title = params.otp
-    ? `Password Reset Verification Code: ${params.otp}`
-    : "Password Reset Requested";
+  const title = "Password Reset Verification Code";
   const body = `
     <p>A password reset was requested for your Invenaro Control admin account.</p>
     ${

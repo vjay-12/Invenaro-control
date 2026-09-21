@@ -12,6 +12,7 @@ import {
   generateRandomToken,
   encryptAesGcm,
   decryptAesGcm,
+  constantTimeCompare,
 } from "../auth/crypto.js";
 import {
   generateTotpSecret,
@@ -382,6 +383,7 @@ adminRouter.post("/forgot", async (req, res) => {
     await sendAdminEmail({
       event: "password_reset_requested",
       subject: emailPayload.subject,
+      subjectForLog: "Password reset verification code",
       text: emailPayload.text,
       html: emailPayload.html,
       entityType: "AdminUser",
@@ -425,12 +427,29 @@ adminRouter.post("/forgot/verify", async (req, res) => {
   const confirmPassword = String(req.body.confirmPassword || "");
   const ip = req.adminAuth?.clientIp || "127.0.0.1";
   const userAgent = req.headers["user-agent"];
+  const now = new Date();
 
   const admin = await prisma.adminUser.findUnique({
     where: { email },
   });
 
-  if (!admin) {
+  const activeToken = admin
+    ? await prisma.passwordResetToken.findFirst({
+        where: {
+          adminId: admin.id,
+          usedAt: null,
+          expiresAt: { gt: now },
+        },
+        orderBy: { createdAt: "desc" },
+      })
+    : null;
+
+  if (!admin || !activeToken) {
+    // Constant time dummy comparison
+    const dummyCandidate = hashToken(`dummy:${code}`);
+    const dummyTarget = hashToken("dummy:target");
+    constantTimeCompare(dummyCandidate, dummyTarget);
+
     sendHtml(
       req,
       res,
@@ -443,21 +462,70 @@ adminRouter.post("/forgot/verify", async (req, res) => {
     return;
   }
 
-  const tokenHash = hashToken(`${admin.id}:${code}`);
-  const now = new Date();
-
-  const resetRecord = await prisma.passwordResetToken.findUnique({
-    where: { tokenHash },
+  // Check failed attempts for this code/token
+  const failedAttempts = await prisma.adminLoginAttempt.count({
+    where: {
+      email: `reset_code:${admin.id}`,
+      success: false,
+      attemptedAt: { gte: activeToken.createdAt },
+    },
   });
 
-  if (!resetRecord || resetRecord.usedAt || resetRecord.expiresAt < now || resetRecord.adminId !== admin.id) {
+  if (failedAttempts >= 5) {
+    // Invalidate the reset token
+    await prisma.passwordResetToken.updateMany({
+      where: { adminId: admin.id },
+      data: { usedAt: now },
+    });
     sendHtml(
       req,
       res,
       "Verify Reset Code",
       renderForgotVerifyPage({
         email,
-        error: "Invalid or expired verification code.",
+        error: "Too many incorrect attempts. This verification code has been invalidated. Please request a new one.",
+      })
+    );
+    return;
+  }
+
+  const candidateHash = hashToken(`${admin.id}:${code}`);
+  const isMatch = constantTimeCompare(candidateHash, activeToken.tokenHash);
+
+  if (!isMatch) {
+    await prisma.adminLoginAttempt.create({
+      data: {
+        email: `reset_code:${admin.id}`,
+        ip,
+        success: false,
+      },
+    });
+
+    const newFailedCount = failedAttempts + 1;
+    if (newFailedCount >= 5) {
+      await prisma.passwordResetToken.updateMany({
+        where: { adminId: admin.id },
+        data: { usedAt: now },
+      });
+      sendHtml(
+        req,
+        res,
+        "Verify Reset Code",
+        renderForgotVerifyPage({
+          email,
+          error: "Too many incorrect attempts. This verification code has been invalidated. Please request a new one.",
+        })
+      );
+      return;
+    }
+
+    sendHtml(
+      req,
+      res,
+      "Verify Reset Code",
+      renderForgotVerifyPage({
+        email,
+        error: `Invalid verification code. (${5 - newFailedCount} attempt${5 - newFailedCount === 1 ? "" : "s"} remaining)`,
       })
     );
     return;

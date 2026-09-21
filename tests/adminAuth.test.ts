@@ -379,4 +379,87 @@ describe("Admin Authentication & Security Tests", () => {
     expect(loginRes.status).toBe(302);
     expect(loginRes.header.location).toBe("/admin/login/2fa");
   });
+
+  it("ensures no Notification record contains a 6-digit code or reset token in any column", async () => {
+    const testAdminEmail = `leak-test-${Date.now()}@example.com`;
+    await prisma.adminUser.create({
+      data: {
+        email: testAdminEmail,
+        passwordHash: await hashPassword("OldPassword123!"),
+        mustChangePassword: false,
+        totpEnabled: true,
+      },
+    });
+
+    const forgotRes = await request(app)
+      .post("/admin/forgot")
+      .send({ email: testAdminEmail });
+
+    expect(forgotRes.status).toBe(200);
+
+    // Verify all notifications logged for this test
+    const notifs = await prisma.notification.findMany({
+      where: { event: "password_reset_requested" },
+    });
+
+    expect(notifs.length).toBeGreaterThan(0);
+    for (const notif of notifs) {
+      // Subject must NOT contain 6-digit numbers
+      expect(notif.subject).not.toMatch(/\b\d{6}\b/);
+      expect(notif.subject).toContain("Password reset verification code");
+      // Subject must NOT contain tokens
+      expect(notif.subject).not.toContain("reset/");
+      // Error column must NOT contain 6-digit numbers
+      if (notif.error) {
+        expect(notif.error).not.toMatch(/\b\d{6}\b/);
+      }
+    }
+  });
+
+  it("invalidates the verification code after 5 wrong attempts", async () => {
+    const testAdminEmail = `lock-code-${Date.now()}@example.com`;
+    const admin = await prisma.adminUser.create({
+      data: {
+        email: testAdminEmail,
+        passwordHash: await hashPassword("OldPassword123!"),
+        mustChangePassword: false,
+        totpEnabled: true,
+      },
+    });
+
+    const realOtp = "998877";
+    await prisma.passwordResetToken.create({
+      data: {
+        adminId: admin.id,
+        tokenHash: hashToken(`${admin.id}:${realOtp}`),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        ip: "127.0.0.1",
+      },
+    });
+
+    // Make 5 wrong attempts
+    for (let i = 0; i < 5; i++) {
+      await request(app)
+        .post("/admin/forgot/verify")
+        .send({
+          email: testAdminEmail,
+          code: "111111",
+          password: "NewBrandPassword456!",
+          confirmPassword: "NewBrandPassword456!",
+        });
+    }
+
+    // Now even the correct code MUST be rejected because token was invalidated
+    const tryCorrectRes = await request(app)
+      .post("/admin/forgot/verify")
+      .send({
+        email: testAdminEmail,
+        code: realOtp,
+        password: "NewBrandPassword456!",
+        confirmPassword: "NewBrandPassword456!",
+      });
+
+    expect(tryCorrectRes.status).toBe(200);
+    expect(tryCorrectRes.text).toContain("invalidated");
+  });
 });
