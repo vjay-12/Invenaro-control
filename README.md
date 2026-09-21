@@ -226,3 +226,16 @@ The administrative panel is mounted under `/admin` and provides web-based manage
 
 For complete documentation on setup, configuration, CLI recovery commands, and architecture, see [Admin Web UI Documentation](docs/admin-ui.md).
 
+---
+
+## 8. Testing & Test Database Safety Guard
+
+Tests are split into two categories to protect operational database environments:
+1. **Pure Unit Tests (`npm run test:unit`)**: Stateless unit tests that execute without database dependencies.
+2. **Database-Backed Tests (`npm run test:db`)**: Tests that verify end-to-end database operations, transactions, and authentication workflows.
+
+> [!CAUTION]
+> **DB-backed tests NEVER run against Development or Production databases.**
+> Vitest is configured with a strict safety guard (`tests/setup/dbGuard.ts`) that verifies `.env.test` exists, asserts `TEST_DATABASE_URL` is distinct from the primary database, and requires the database hostname or name to contain the configured `TEST_DB_MARKER` (e.g. `test`). Any attempt to run DB tests against non-test databases will immediately abort execution.
+
+

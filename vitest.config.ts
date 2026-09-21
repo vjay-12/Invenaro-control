@@ -5,5 +5,6 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     fileParallelism: false,
+    setupFiles: ["./tests/setup/dbGuard.ts"],
   },
 });
