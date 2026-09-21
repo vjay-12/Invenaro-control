@@ -1251,7 +1251,7 @@ adminRouter.post("/customers/:id/module", async (req, res) => {
 });
 
 // POST /admin/customers/:id/renew
-adminRouter.post("/admin/customers/:id/renew", async (req, res) => {
+adminRouter.post("/customers/:id/renew", async (req, res) => {
   const auth = req.adminAuth;
   if (!auth) return res.redirect("/admin/login");
 

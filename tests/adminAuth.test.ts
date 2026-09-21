@@ -9,6 +9,7 @@ import {
   hashToken,
 } from "../src/admin/auth/crypto.js";
 import { generateTotpSecret, getTotpUri, verifyTotpCode } from "../src/admin/auth/totp.js";
+import { getSessionCookieName, createAdminSession } from "../src/admin/auth/session.js";
 import * as OTPAuth from "otpauth";
 
 // Mock nodemailer
@@ -461,5 +462,62 @@ describe("Admin Authentication & Security Tests", () => {
 
     expect(tryCorrectRes.status).toBe(200);
     expect(tryCorrectRes.text).toContain("invalidated");
+  });
+
+  it("proves POST /admin/customers/:id/renew works for an authenticated admin", async () => {
+    const testAdminEmail = `renew-admin-${Date.now()}@example.com`;
+    const admin = await prisma.adminUser.create({
+      data: {
+        email: testAdminEmail,
+        passwordHash: await hashPassword("ValidPassword123!"),
+        mustChangePassword: false,
+        totpEnabled: true,
+      },
+    });
+
+    const { session, rawToken } = await createAdminSession({
+      adminId: admin.id,
+      stage: "active",
+      ip: "127.0.0.1",
+    });
+
+    const cookie = `${getSessionCookieName(false)}=${rawToken}`;
+
+    const customer = await prisma.customer.create({
+      data: {
+        companyName: "Acme Renew Corp",
+        status: "active",
+      },
+    });
+
+    const license = await prisma.license.create({
+      data: {
+        customerId: customer.id,
+        keyHash: "dummy_key_hash_renew",
+        keyPrefix: "INV-RNW1",
+        plan: "business",
+        status: "active",
+        expiresAt: new Date("2026-06-01T23:59:59.999Z"),
+        graceDays: 14,
+      },
+    });
+
+    const renewRes = await request(app)
+      .post(`/admin/customers/${customer.id}/renew`)
+      .set("Cookie", cookie)
+      .send({
+        _csrf: session.csrfToken,
+        expires: "2029-12-31",
+      });
+
+    // Should NOT be 404! Should redirect to customer detail page with success message
+    expect(renewRes.status).toBe(302);
+    expect(renewRes.header.location).toBe(`/admin/customers/${customer.id}?success=License%20renewed%20successfully.`);
+
+    // Verify license updated in database
+    const updatedLicense = await prisma.license.findUniqueOrThrow({
+      where: { id: license.id },
+    });
+    expect(updatedLicense.expiresAt.toISOString().slice(0, 10)).toBe("2029-12-31");
   });
 });
