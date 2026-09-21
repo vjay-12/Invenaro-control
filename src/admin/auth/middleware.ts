@@ -57,6 +57,11 @@ export function verifyRequestOrigin(req: Request): boolean {
     return false;
   }
 
+  // If browser explicitly signals same-origin or same-site, allow
+  if (secFetchSite === "same-origin" || secFetchSite === "same-site") {
+    return true;
+  }
+
   if (origin && typeof origin === "string") {
     const config = getConfig();
     try {
@@ -72,6 +77,13 @@ export function verifyRequestOrigin(req: Request): boolean {
       if (config.APP_BASE_URL) {
         const appBaseUrl = new URL(config.APP_BASE_URL);
         if (originUrl.origin === appBaseUrl.origin) {
+          return true;
+        }
+      }
+
+      // Allow standard local addresses in development
+      if (config.NODE_ENV === "development") {
+        if (originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1") {
           return true;
         }
       }

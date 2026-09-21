@@ -14,22 +14,22 @@ export function renderLoginPage(params: {
       <h1 class="auth-title">Admin Sign In</h1>
       <p class="auth-subtitle">Sign in to manage Invenaro licenses and customers</p>
 
-      ${params.error ? html`<div class="alert alert-error">${params.error}</div>` : ""}
+      ${params.error ? raw(html`<div class="alert alert-error">${params.error}</div>`) : ""}
 
       <form method="POST" action="/admin/login">
-        ${params.csrfToken ? html`<input type="hidden" name="_csrf" value="${params.csrfToken}">` : ""}
+        ${params.csrfToken ? raw(html`<input type="hidden" name="_csrf" value="${params.csrfToken}">`) : ""}
         <div class="form-group">
           <label for="email">Admin Email</label>
-          <input type="email" id="email" name="email" required autofocus autocomplete="username">
+          <input type="email" id="email" name="email" required autofocus autocomplete="username" placeholder="admin@example.com">
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin-bottom: 8px;">
           <label for="password">Password</label>
-          <input type="password" id="password" name="password" required autocomplete="current-password">
+          <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••••••">
         </div>
-        <div style="margin-bottom: 20px; text-align: right;">
-          <a href="/admin/forgot" style="font-size: 13px;">Forgot password?</a>
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+          <a href="/admin/forgot" style="font-size: 13px; color: #38bdf8; text-decoration: none; font-weight: 500;">Forgot password?</a>
         </div>
-        <button type="submit" class="btn btn-block">Sign In</button>
+        <button type="submit" class="btn btn-block" style="padding: 11px 16px; font-size: 15px;">Sign In</button>
       </form>
     </div>
   `;
@@ -44,15 +44,15 @@ export function renderLogin2faPage(params: {
       <h1 class="auth-title">Two-Factor Authentication</h1>
       <p class="auth-subtitle">Enter the 6-digit verification code from your authenticator app, or a one-time recovery code.</p>
 
-      ${params.error ? html`<div class="alert alert-error">${params.error}</div>` : ""}
+      ${params.error ? raw(html`<div class="alert alert-error">${params.error}</div>`) : ""}
 
       <form method="POST" action="/admin/login/2fa">
-        ${params.csrfToken ? html`<input type="hidden" name="_csrf" value="${params.csrfToken}">` : ""}
+        ${params.csrfToken ? raw(html`<input type="hidden" name="_csrf" value="${params.csrfToken}">`) : ""}
         <div class="form-group">
           <label for="code">Authentication Code or Recovery Code</label>
           <input type="text" id="code" name="code" required autofocus placeholder="123456 or XXXX-XXXX-XXXX" autocomplete="one-time-code" class="mono">
         </div>
-        <button type="submit" class="btn btn-block">Verify</button>
+        <button type="submit" class="btn btn-block" style="padding: 11px 16px; font-size: 15px;">Verify</button>
       </form>
     </div>
   `;
@@ -67,17 +67,19 @@ export function renderForgotPasswordPage(params: {
       <h1 class="auth-title">Reset Password</h1>
       <p class="auth-subtitle">Enter your admin email address to receive a secure password reset link.</p>
 
-      ${params.message ? html`<div class="alert alert-success">${params.message}</div>` : ""}
+      ${params.message ? raw(html`<div class="alert alert-success">${params.message}</div>`) : ""}
 
       <form method="POST" action="/admin/forgot">
-        ${params.csrfToken ? html`<input type="hidden" name="_csrf" value="${params.csrfToken}">` : ""}
+        ${params.csrfToken ? raw(html`<input type="hidden" name="_csrf" value="${params.csrfToken}">`) : ""}
         <div class="form-group">
           <label for="email">Admin Email</label>
-          <input type="email" id="email" name="email" required autofocus autocomplete="email">
+          <input type="email" id="email" name="email" required autofocus autocomplete="email" placeholder="admin@example.com">
         </div>
-        <button type="submit" class="btn btn-block">Send Reset Link</button>
-        <div style="margin-top: 16px; text-align: center;">
-          <a href="/admin/login" style="font-size: 13px;">Return to Sign In</a>
+        <div style="margin-top: 24px;">
+          <button type="submit" class="btn btn-block" style="padding: 11px 16px; font-size: 15px;">Send Reset Link</button>
+        </div>
+        <div style="margin-top: 20px; text-align: center;">
+          <a href="/admin/login" style="font-size: 13px; color: #38bdf8;">Return to Sign In</a>
         </div>
       </form>
     </div>
@@ -94,10 +96,10 @@ export function renderResetPasswordPage(params: {
       <h1 class="auth-title">Choose New Password</h1>
       <p class="auth-subtitle">Choose a strong password with at least 12 characters.</p>
 
-      ${params.error ? html`<div class="alert alert-error">${params.error}</div>` : ""}
+      ${params.error ? raw(html`<div class="alert alert-error">${params.error}</div>`) : ""}
 
       <form method="POST" action="/admin/reset/${params.token}">
-        ${params.csrfToken ? html`<input type="hidden" name="_csrf" value="${params.csrfToken}">` : ""}
+        ${params.csrfToken ? raw(html`<input type="hidden" name="_csrf" value="${params.csrfToken}">`) : ""}
         <div class="form-group">
           <label for="password">New Password</label>
           <input type="password" id="password" name="password" required minlength="12" autofocus autocomplete="new-password">
@@ -106,7 +108,9 @@ export function renderResetPasswordPage(params: {
           <label for="confirmPassword">Confirm New Password</label>
           <input type="password" id="confirmPassword" name="confirmPassword" required minlength="12" autocomplete="new-password">
         </div>
-        <button type="submit" class="btn btn-block">Set New Password</button>
+        <div style="margin-top: 24px;">
+          <button type="submit" class="btn btn-block" style="padding: 11px 16px; font-size: 15px;">Set New Password</button>
+        </div>
       </form>
     </div>
   `;
@@ -121,7 +125,7 @@ export function renderSetupPasswordPage(params: {
       <h1 class="auth-title">Set Initial Password</h1>
       <p class="auth-subtitle">Your temporary credentials require setting a permanent password before continuing.</p>
 
-      ${params.error ? html`<div class="alert alert-error">${params.error}</div>` : ""}
+      ${params.error ? raw(html`<div class="alert alert-error">${params.error}</div>`) : ""}
 
       <form method="POST" action="/admin/setup/password">
         <input type="hidden" name="_csrf" value="${params.csrfToken}">
@@ -133,7 +137,9 @@ export function renderSetupPasswordPage(params: {
           <label for="confirmPassword">Confirm Password</label>
           <input type="password" id="confirmPassword" name="confirmPassword" required minlength="12" autocomplete="new-password">
         </div>
-        <button type="submit" class="btn btn-block">Save and Continue</button>
+        <div style="margin-top: 24px;">
+          <button type="submit" class="btn btn-block" style="padding: 11px 16px; font-size: 15px;">Save and Continue</button>
+        </div>
       </form>
     </div>
   `;
@@ -150,7 +156,7 @@ export function renderSetup2faPage(params: {
       <h1 class="auth-title">Enroll in Two-Factor Authentication</h1>
       <p class="auth-subtitle">Scan the QR code with your authenticator app (e.g. Google Authenticator, Authy, 1Password).</p>
 
-      ${params.error ? html`<div class="alert alert-error">${params.error}</div>` : ""}
+      ${params.error ? raw(html`<div class="alert alert-error">${params.error}</div>`) : ""}
 
       <div style="text-align: center; margin: 20px 0; background: #ffffff; padding: 16px; border-radius: 8px; display: inline-block; width: 100%;">
         <img src="${params.qrDataUri}" alt="2FA QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto;">
