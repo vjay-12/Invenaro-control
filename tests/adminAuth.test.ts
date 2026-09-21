@@ -45,8 +45,8 @@ describe("Admin Authentication & Security Tests", () => {
     await prisma.adminSession.deleteMany({});
     await prisma.adminLoginAttempt.deleteMany({});
     await prisma.passwordResetToken.deleteMany({});
-    await prisma.notification.deleteMany({});
-    await prisma.adminUser.deleteMany({});
+    await prisma.notification.deleteMany({ where: { toEmail: { endsWith: "@example.com" } } });
+    await prisma.adminUser.deleteMany({ where: { email: { endsWith: "@example.com" } } });
   });
 
   it("redirects unauthenticated /admin requests to /admin/login", async () => {
