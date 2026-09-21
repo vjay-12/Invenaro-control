@@ -151,8 +151,12 @@ export type Config = z.infer<typeof envSchema>;
 
 let parsedConfig: Config | null = null;
 
+export function resetConfig(): void {
+  parsedConfig = null;
+}
+
 export function getConfig(): Config {
-  if (parsedConfig) {
+  if (parsedConfig && process.env.NODE_ENV !== "test") {
     return parsedConfig;
   }
 

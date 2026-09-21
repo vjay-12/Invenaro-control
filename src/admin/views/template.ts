@@ -1,9 +1,12 @@
 export class RawString {
   constructor(public value: string) {}
+  toString(): string {
+    return this.value;
+  }
 }
 
-export function raw(val: string): RawString {
-  return new RawString(val);
+export function raw(val: string | RawString): RawString {
+  return new RawString(val instanceof RawString ? val.value : String(val));
 }
 
 export function escapeHtml(str: unknown): string {
@@ -22,7 +25,9 @@ export function html(strings: TemplateStringsArray, ...values: unknown[]): strin
   for (let i = 0; i < values.length; i++) {
     const val = values[i];
     if (Array.isArray(val)) {
-      result += val.map((item) => escapeHtml(item)).join("");
+      result += val.map((item) => (item instanceof RawString ? item.value : escapeHtml(item))).join("");
+    } else if (val instanceof RawString) {
+      result += val.value;
     } else {
       result += escapeHtml(val);
     }
@@ -33,7 +38,7 @@ export function html(strings: TemplateStringsArray, ...values: unknown[]): strin
 
 export interface LayoutOptions {
   title: string;
-  content: string;
+  content: string | RawString;
   nonce?: string;
   userEmail?: string;
   currentPath?: string;
@@ -44,6 +49,7 @@ export interface LayoutOptions {
 export function renderLayout(opts: LayoutOptions): string {
   const nonceAttr = opts.nonce ? ` nonce="${opts.nonce}"` : "";
   const isLoggedIn = Boolean(opts.userEmail);
+  const contentStr = opts.content instanceof RawString ? opts.content.value : opts.content;
 
   return html`<!DOCTYPE html>
 <html lang="en">
@@ -202,7 +208,7 @@ export function renderLayout(opts: LayoutOptions): string {
   </style>
 </head>
 <body>
-  ${isLoggedIn ? html`
+  ${isLoggedIn ? raw(html`
     <nav class="nav-bar">
       <div class="flex-row">
         <span class="nav-brand">Invenaro Control</span>
@@ -222,15 +228,15 @@ export function renderLayout(opts: LayoutOptions): string {
         </form>
       </div>
     </nav>
-  ` : ""}
+  `) : ""}
 
   <div class="container">
-    ${opts.alert ? html`
+    ${opts.alert ? raw(html`
       <div class="alert alert-${opts.alert.type}">
         ${opts.alert.message}
       </div>
-    ` : ""}
-    ${raw(opts.content)}
+    `) : ""}
+    ${raw(contentStr)}
   </div>
 
   <script${raw(nonceAttr)}>

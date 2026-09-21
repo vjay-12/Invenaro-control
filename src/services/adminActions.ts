@@ -32,7 +32,7 @@ export const CreateCustomerWithLicenseSchema = z.object({
 });
 
 export async function createCustomerWithLicense(
-  rawInput: z.infer<typeof CreateCustomerWithLicenseSchema>
+  rawInput: z.input<typeof CreateCustomerWithLicenseSchema>
 ) {
   const input = CreateCustomerWithLicenseSchema.parse(rawInput);
 
