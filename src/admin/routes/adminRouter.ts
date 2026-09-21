@@ -19,6 +19,7 @@ import {
   getTotpUri,
   generateQrCodeDataUri,
   verifyTotpCode,
+  verifyTotpCodeWithReplay,
   generateRecoveryCodes,
   verifyAndConsumeRecoveryCode,
 } from "../auth/totp.js";
@@ -38,6 +39,7 @@ import {
 import {
   sendAdminEmail,
   buildLoginSuccessEmail,
+  buildAccountLockedEmail,
   buildPasswordResetRequestedEmail,
   buildPasswordChangedEmail,
   buildTwoFactorEnabledEmail,
@@ -239,27 +241,76 @@ adminRouter.post("/login/2fa", async (req, res) => {
   const code = String(req.body.code || "").trim();
   const session = auth.session;
   const admin = auth.admin;
+  const now = new Date();
 
-  if (session.attempts >= 5) {
+  // 0. Check account-level lockout: if already locked, reject immediately
+  if (admin.lockedUntil && admin.lockedUntil > now) {
+    sendHtml(
+      req,
+      res,
+      "Two-Factor Authentication",
+      renderLogin2faPage({
+        csrfToken: auth.csrfToken,
+        error: "This account is temporarily locked due to multiple failed 2FA attempts. Please try again later.",
+      })
+    );
+    return;
+  }
+
+  // 1. Check account-wide failed 2FA attempts across ALL sessions within last 15 minutes
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+  const accountFailed2fa = await prisma.adminLoginAttempt.count({
+    where: {
+      email: `2fa:${admin.id}`,
+      success: false,
+      attemptedAt: { gte: fifteenMinutesAgo },
+    },
+  });
+
+  if (accountFailed2fa >= 5 || session.attempts >= 5) {
+    const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+    await prisma.adminUser.update({
+      where: { id: admin.id },
+      data: { lockedUntil: lockUntil },
+    });
     await prisma.adminSession.delete({ where: { id: session.id } }).catch(() => {});
     clearSessionCookie(res, req);
-    res.redirect("/admin/login?error=Too%20many%20failed%202FA%20attempts.%20Please%20sign%20in%20again.");
+
+    const emailPayload = buildAccountLockedEmail({
+      email: admin.email,
+      ip: auth.clientIp,
+    });
+    await sendAdminEmail({
+      event: "account_locked",
+      subject: emailPayload.subject,
+      text: emailPayload.text,
+      html: emailPayload.html,
+      entityType: "AdminUser",
+      entityId: admin.id,
+    });
+
+    res.redirect("/admin/login?error=Account%20locked%20due%20to%20multiple%20failed%202FA%20attempts.%20Try%20again%20in%2015%20minutes.");
     return;
   }
 
   let codeValid = false;
+  let verifiedTimeStep: number | undefined = undefined;
 
-  // 1. Check TOTP authenticator code
+  // 2. Check TOTP authenticator code with replay protection
   if (admin.totpSecretEnc) {
     try {
       const secret = decryptAesGcm(admin.totpSecretEnc);
-      codeValid = verifyTotpCode(secret, code);
+      const totpRes = verifyTotpCodeWithReplay(secret, code, (admin as any).totpLastTimeStep);
+      if (totpRes.valid) {
+        codeValid = true;
+        verifiedTimeStep = totpRes.timeStep;
+      }
     } catch (err) {
       console.error("[2FA] Error decrypting TOTP secret:", err);
     }
   }
 
-  // 2. Check recovery code if not verified as TOTP
+  // 3. Check recovery code if not verified as TOTP
   if (!codeValid && Array.isArray(admin.recoveryCodeHashes)) {
     const recoveryResult = verifyAndConsumeRecoveryCode(
       code,
@@ -275,17 +326,54 @@ adminRouter.post("/login/2fa", async (req, res) => {
   }
 
   if (!codeValid) {
+    // Record failed attempt for this account across all sessions
+    await prisma.adminLoginAttempt.create({
+      data: {
+        email: `2fa:${admin.id}`,
+        ip: auth.clientIp,
+        success: false,
+      },
+    });
+
     await prisma.adminSession.update({
       where: { id: session.id },
       data: { attempts: session.attempts + 1 },
     });
+
+    const newFailed = accountFailed2fa + 1;
+    if (newFailed >= 5 || session.attempts + 1 >= 5) {
+      const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+      await prisma.adminUser.update({
+        where: { id: admin.id },
+        data: { lockedUntil: lockUntil },
+      });
+      await prisma.adminSession.delete({ where: { id: session.id } }).catch(() => {});
+      clearSessionCookie(res, req);
+
+      const emailPayload = buildAccountLockedEmail({
+        email: admin.email,
+        ip: auth.clientIp,
+      });
+      await sendAdminEmail({
+        event: "account_locked",
+        subject: emailPayload.subject,
+        text: emailPayload.text,
+        html: emailPayload.html,
+        entityType: "AdminUser",
+        entityId: admin.id,
+      });
+
+      res.redirect("/admin/login?error=Account%20locked%20due%20to%20multiple%20failed%202FA%20attempts.%20Try%20again%20in%2015%20minutes.");
+      return;
+    }
+
     sendHtml(
       req,
       res,
       "Two-Factor Authentication",
       renderLogin2faPage({
         csrfToken: auth.csrfToken,
-        error: "Invalid 2FA code or recovery code. Please try again.",
+        error: `Invalid 2FA code or recovery code. (${5 - newFailed} attempt${5 - newFailed === 1 ? "" : "s"} remaining)`,
       })
     );
     return;

@@ -520,4 +520,123 @@ describe("Admin Authentication & Security Tests", () => {
     });
     expect(updatedLicense.expiresAt.toISOString().slice(0, 10)).toBe("2029-12-31");
   });
+
+  it("ensures login lockout blocks NEW logins only and does NOT invalidate existing active sessions", async () => {
+    const testEmail = `active-lockout-${Date.now()}@example.com`;
+    const admin = await prisma.adminUser.create({
+      data: {
+        email: testEmail,
+        passwordHash: await hashPassword("MyCorrectPassword123!"),
+        mustChangePassword: false,
+        totpEnabled: false,
+      },
+    });
+
+    // Create an active session for the admin
+    const { session, rawToken } = await createAdminSession({
+      adminId: admin.id,
+      stage: "active",
+      ip: "10.0.0.1",
+    });
+
+    const activeCookie = `${getSessionCookieName(false)}=${rawToken}`;
+
+    // Attacker submits 5 wrong passwords to lock the account
+    for (let i = 0; i < 5; i++) {
+      await request(app)
+        .post("/admin/login")
+        .send({ email: testEmail, password: "WrongPassword!" });
+    }
+
+    // Verify account is now marked locked
+    const lockedAdmin = await prisma.adminUser.findUniqueOrThrow({
+      where: { id: admin.id },
+    });
+    expect(lockedAdmin.lockedUntil).not.toBeNull();
+    expect(lockedAdmin.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+
+    // New logins MUST be rejected with locked message
+    const newLoginRes = await request(app)
+      .post("/admin/login")
+      .send({ email: testEmail, password: "MyCorrectPassword123!" });
+    expect(newLoginRes.text).toContain("temporarily locked");
+
+    // Existing active session MUST continue working and NOT be kicked out!
+    const activeReqRes = await request(app)
+      .get("/admin")
+      .set("Cookie", activeCookie);
+    expect(activeReqRes.status).toBe(200);
+    expect(activeReqRes.text).toContain("Admin Dashboard");
+  });
+
+  it("ensures failed login attempts from an IP do NOT lock the real admin account", async () => {
+    const realEmail = `real-admin-${Date.now()}@example.com`;
+    const admin = await prisma.adminUser.create({
+      data: {
+        email: realEmail,
+        passwordHash: await hashPassword("MyCorrectPassword123!"),
+        mustChangePassword: false,
+        totpEnabled: false,
+      },
+    });
+
+    // Attacker from IP 198.51.100.22 fails logins using random non-existent accounts
+    for (let i = 0; i < 5; i++) {
+      await request(app)
+        .post("/admin/login")
+        .set("X-Forwarded-For", "198.51.100.22")
+        .send({ email: `random${i}@example.com`, password: "WrongPassword!" });
+    }
+
+    // Real admin account MUST NOT be locked
+    const freshAdmin = await prisma.adminUser.findUniqueOrThrow({
+      where: { id: admin.id },
+    });
+    expect(freshAdmin.lockedUntil).toBeNull();
+  });
+
+  it("locks account and sends notification after 5 failed 2FA attempts across sessions", async () => {
+    const testEmail = `2fa-lockout-${Date.now()}@example.com`;
+    const { encryptAesGcm } = await import("../src/admin/auth/crypto.js");
+    const secret = generateTotpSecret();
+    const admin = await prisma.adminUser.create({
+      data: {
+        email: testEmail,
+        passwordHash: await hashPassword("MyCorrectPassword123!"),
+        mustChangePassword: false,
+        totpEnabled: true,
+        totpSecretEnc: encryptAesGcm(secret, testEncKey),
+      },
+    });
+
+    // Create 2FA pending session
+    const { session, rawToken } = await createAdminSession({
+      adminId: admin.id,
+      stage: "pending_2fa",
+      ip: "127.0.0.1",
+    });
+
+    const cookie = `${getSessionCookieName(false)}=${rawToken}`;
+
+    // Submit 5 wrong 2FA codes
+    for (let i = 0; i < 5; i++) {
+      await request(app)
+        .post("/admin/login/2fa")
+        .set("Cookie", cookie)
+        .send({ code: "000000" });
+    }
+
+    // Account MUST now be locked
+    const lockedAdmin = await prisma.adminUser.findUniqueOrThrow({
+      where: { id: admin.id },
+    });
+    expect(lockedAdmin.lockedUntil).not.toBeNull();
+    expect(lockedAdmin.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+
+    // Notification for account_locked MUST have been dispatched
+    const notifs = await prisma.notification.findMany({
+      where: { event: "account_locked", entityId: admin.id },
+    });
+    expect(notifs.length).toBeGreaterThan(0);
+  });
 });

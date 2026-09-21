@@ -157,8 +157,8 @@ export async function validateAdminSession(
     return null;
   }
 
-  // Check if admin account is currently locked
-  if (session.admin.lockedUntil && session.admin.lockedUntil > now) {
+  // Check if admin account is currently locked (blocks pending 2FA / new logins, does NOT kick out existing active sessions)
+  if (session.stage !== "active" && session.admin.lockedUntil && session.admin.lockedUntil > now) {
     return null;
   }
 

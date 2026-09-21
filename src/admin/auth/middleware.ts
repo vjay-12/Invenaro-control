@@ -138,7 +138,8 @@ export async function checkLoginRateLimitAndLockout(params: {
     },
   });
 
-  if (failedByEmail >= 5 || failedByIp >= 5) {
+  // Only lock the admin account when failed attempts on that email address >= 5
+  if (failedByEmail >= 5) {
     if (admin) {
       const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
       await prisma.adminUser.update({
@@ -163,6 +164,14 @@ export async function checkLoginRateLimitAndLockout(params: {
     return {
       locked: true,
       message: "Too many failed login attempts. Your account has been temporarily locked for 15 minutes.",
+    };
+  }
+
+  // Throttles suspicious IP addresses without locking out the real account
+  if (failedByIp >= 5) {
+    return {
+      locked: true,
+      message: "Too many failed login attempts from this network. Please try again later.",
     };
   }
 

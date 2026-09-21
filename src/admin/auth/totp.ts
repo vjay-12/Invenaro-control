@@ -40,10 +40,20 @@ export async function generateQrCodeDataUri(uri: string): Promise<string> {
   });
 }
 
+export interface TotpVerificationResult {
+  valid: boolean;
+  timeStep?: number;
+}
+
 /**
- * Validates a 6-digit TOTP code against the secret (allowing 1 step drift = +/- 30s).
+ * Validates a 6-digit TOTP code against the secret (allowing 1 step drift = +/- 30s)
+ * with replay protection preventing reuse of previously verified time steps.
  */
-export function verifyTotpCode(secretBase32: string, token: string): boolean {
+export function verifyTotpCodeWithReplay(
+  secretBase32: string,
+  token: string,
+  lastTimeStep?: number | bigint | null
+): TotpVerificationResult {
   const totp = new OTPAuth.TOTP({
     issuer: "Invenaro Control",
     algorithm: "SHA1",
@@ -57,7 +67,29 @@ export function verifyTotpCode(secretBase32: string, token: string): boolean {
     window: 1,
   });
 
-  return delta !== null;
+  if (delta === null) {
+    return { valid: false };
+  }
+
+  const currentStep = Math.floor(Date.now() / 1000 / 30);
+  const validatedStep = currentStep + delta;
+
+  if (lastTimeStep !== undefined && lastTimeStep !== null && BigInt(validatedStep) <= BigInt(lastTimeStep)) {
+    return { valid: false };
+  }
+
+  return { valid: true, timeStep: validatedStep };
+}
+
+/**
+ * Validates a 6-digit TOTP code against the secret (allowing 1 step drift = +/- 30s).
+ */
+export function verifyTotpCode(
+  secretBase32: string,
+  token: string,
+  lastTimeStep?: number | bigint | null
+): boolean {
+  return verifyTotpCodeWithReplay(secretBase32, token, lastTimeStep).valid;
 }
 
 /**
