@@ -291,4 +291,67 @@ describe("Verify Endpoint & Error Handling", () => {
     expect(res.body.token).toBeDefined();
     expect(res.body.status).toBe("expired");
   });
+
+  it("returns 200 with signed token containing adminEmail when license has adminEmail", async () => {
+    vi.mocked(prisma.license.findUnique).mockResolvedValue({
+      id: "lic_with_admin",
+      customerId: "cust_1",
+      keyHash: validHash,
+      keyPrefix: validKey.slice(0, 8),
+      plan: "business",
+      status: "active",
+      adminEmail: "designated.admin@customer.org",
+      expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+      graceDays: 14,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      customer: {
+        id: "cust_1",
+        companyName: "Acme Corp",
+        status: "active",
+        notes: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deployments: [
+          {
+            id: "dep_1",
+            customerId: "cust_1",
+            domain: "app.acme.com",
+            allowedDomains: ["app.acme.com"],
+            vercelProjectId: null,
+            neonProjectId: null,
+            region: null,
+            appVersion: null,
+            rolloutWave: 1,
+            autoDeploy: true,
+            lastSeenAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      },
+      modules: [],
+    } as any);
+
+    const res = await request(app)
+      .post("/v1/licenses/verify")
+      .send({
+        licenseKey: validKey,
+        domain: "app.acme.com",
+        appVersion: "1.2.0",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBeDefined();
+
+    // Verify token claims contains adminEmail
+    const { getPublicKey } = await import("../src/services/tokenService.js");
+    const { key } = await getPublicKey();
+    const { payload } = await jose.jwtVerify(res.body.token, key, {
+      issuer: "invenaro-control",
+      algorithms: ["EdDSA"],
+    });
+
+    expect(payload.adminEmail).toBe("designated.admin@customer.org");
+  });
 });

@@ -37,7 +37,7 @@ program
   .option("--contact-phone <phone>", "Contact phone number")
   .action((opts) => customerCreateCommand(opts));
 
-// license:create --customer <id> --plan <plan> --expires <YYYY-MM-DD> [--grace 14]
+// license:create --customer <id> --plan <plan> --expires <YYYY-MM-DD> [--grace 14] [--admin-email <email>]
 program
   .command("license:create")
   .description("Generate a new license key and record for a customer")
@@ -45,6 +45,7 @@ program
   .requiredOption("--plan <plan>", "Plan: basic | business | enterprise")
   .requiredOption("--expires <date>", "Expiry date (YYYY-MM-DD)")
   .option("--grace <days>", "Grace period in days", "14")
+  .option("--admin-email <email>", "Designated administrator email")
   .action((opts) => licenseCreateCommand(opts));
 
 // license:show <licenseId|keyPrefix>

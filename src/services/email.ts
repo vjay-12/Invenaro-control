@@ -225,6 +225,7 @@ export function buildCustomerCreatedEmail(params: {
   domain: string;
   plan: string;
   actor: string;
+  adminEmail?: string;
 }) {
   const title = `Customer Created: ${params.companyName}`;
   const body = `
@@ -233,6 +234,7 @@ export function buildCustomerCreatedEmail(params: {
     <p><strong>Customer ID:</strong> ${escapeHtml(params.customerId)}</p>
     <p><strong>Primary Domain:</strong> ${escapeHtml(params.domain)}</p>
     <p><strong>Initial Plan:</strong> ${escapeHtml(params.plan)}</p>
+    ${params.adminEmail ? `<p><strong>Admin Email:</strong> ${escapeHtml(params.adminEmail)}</p>` : ""}
     <p><strong>Created By:</strong> ${escapeHtml(params.actor)}</p>
   `;
   const { text, html } = baseTemplate(title, body);

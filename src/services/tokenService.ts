@@ -74,6 +74,7 @@ export async function signLicenseToken(
 
   const fullClaims: LicenseTokenClaims = {
     ...claims,
+    ...(claims.adminEmail ? { adminEmail: claims.adminEmail.trim().toLowerCase() } : {}),
     iss: "invenaro-control",
     iat: nowSeconds,
     exp: expSeconds,

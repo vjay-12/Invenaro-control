@@ -18,6 +18,12 @@ const LicenseCreateSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Expires must be in YYYY-MM-DD format")
     .transform((str) => new Date(`${str}T23:59:59.999Z`)),
   grace: z.coerce.number().int().nonnegative().default(14),
+  adminEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Valid admin email is required")
+    .optional(),
 });
 
 export async function licenseCreateCommand(options: {
@@ -25,6 +31,7 @@ export async function licenseCreateCommand(options: {
   plan?: string;
   expires?: string;
   grace?: string | number;
+  adminEmail?: string;
 }) {
   const parsed = LicenseCreateSchema.safeParse(options);
   if (!parsed.success) {
@@ -33,7 +40,7 @@ export async function licenseCreateCommand(options: {
     process.exit(1);
   }
 
-  const { customer: customerId, plan, expires, grace } = parsed.data;
+  const { customer: customerId, plan, expires, grace, adminEmail } = parsed.data;
 
   try {
     const customer = await prisma.customer.findUnique({
@@ -57,6 +64,7 @@ export async function licenseCreateCommand(options: {
         plan: plan as LicensePlan,
         expiresAt: expires,
         graceDays: grace,
+        adminEmail: adminEmail || null,
       },
     });
 

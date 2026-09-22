@@ -517,6 +517,12 @@ export function renderCustomerNewPage(params: {
             <span style="font-size: 12px; color: #94a3b8;">This domain is authorized for license verification.</span>
           </div>
 
+          <div class="form-group">
+            <label for="adminEmail">Designated Admin Email *</label>
+            <input type="email" id="adminEmail" name="adminEmail" required value="${params.formData?.adminEmail || ""}" placeholder="admin@customer.com">
+            <span style="font-size: 12px; color: #94a3b8;">Customer's designated administrator email, embedded in the signed license for initial owner setup.</span>
+          </div>
+
           <div class="flex-row" style="gap: 16px;">
             <div class="form-group" style="flex: 1;">
               <label for="plan">License Plan *</label>
@@ -571,7 +577,7 @@ export function renderCustomerNewPage(params: {
 export function renderCustomerCreatedSuccessPage(params: {
   customer: { id: string; companyName: string };
   deployment: { domain: string };
-  license: { id: string; plan: string; expiresAt: Date; keyPrefix: string };
+  license: { id: string; plan: string; expiresAt: Date; keyPrefix: string; adminEmail?: string | null };
   plainLicenseKey: string;
 }): RawString {
   return html`
@@ -600,6 +606,12 @@ export function renderCustomerCreatedSuccessPage(params: {
             <td style="color: #94a3b8;">Primary Domain</td>
             <td class="mono">${params.deployment.domain}</td>
           </tr>
+          ${params.license.adminEmail ? html`
+          <tr>
+            <td style="color: #94a3b8;">Admin Email</td>
+            <td class="mono">${params.license.adminEmail}</td>
+          </tr>
+          ` : ""}
           <tr>
             <td style="color: #94a3b8;">Plan</td>
             <td><span class="badge badge-${params.license.plan}">${params.license.plan}</span></td>
@@ -690,6 +702,10 @@ export function renderCustomerDetailPage(data: {
         <div class="metric-card">
           <div class="metric-label">Key Prefix</div>
           <div class="mono" style="font-size: 18px; color: #38bdf8; margin-top: 4px;">${l.keyPrefix}...</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Admin Email</div>
+          <div class="mono" style="font-size: 14px; color: #f1f5f9; margin-top: 4px; word-break: break-all;">${l.adminEmail || "None (legacy)"}</div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Expiration Date</div>

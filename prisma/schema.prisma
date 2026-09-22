@@ -52,6 +52,7 @@ model License {
   status     LicenseStatus @default(active)
   expiresAt  DateTime      @map("expires_at")
   graceDays  Int           @default(14) @map("grace_days")
+  adminEmail String?       @map("admin_email")
   createdAt  DateTime      @default(now()) @map("created_at")
   updatedAt  DateTime      @updatedAt @map("updated_at")
 

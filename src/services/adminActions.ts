@@ -21,6 +21,12 @@ import { MODULE_NAMES, ModuleName } from "../contract/license-token.js";
 export const CreateCustomerWithLicenseSchema = z.object({
   companyName: z.string().trim().min(1, "Company name is required"),
   domain: z.string().trim().min(1, "Primary domain is required"),
+  adminEmail: z
+    .string({ required_error: "Admin email is required" })
+    .trim()
+    .min(1, "Admin email is required")
+    .email("Valid admin email is required")
+    .transform((val) => val.toLowerCase()),
   plan: z.enum(["basic", "business", "enterprise"]),
   expiresAt: z.date(),
   graceDays: z.number().int().nonnegative().default(14),
@@ -69,6 +75,7 @@ export async function createCustomerWithLicense(
         expiresAt: input.expiresAt,
         graceDays: input.graceDays,
         status: "active",
+        adminEmail: input.adminEmail,
       },
     });
 
@@ -84,6 +91,7 @@ export async function createCustomerWithLicense(
           plan: license.plan,
           licenseId: license.id,
           keyPrefix: license.keyPrefix,
+          adminEmail: license.adminEmail,
           expiresAt: license.expiresAt.toISOString(),
           graceDays: license.graceDays,
         },
@@ -100,6 +108,7 @@ export async function createCustomerWithLicense(
     domain: result.deployment.domain,
     plan: result.license.plan,
     actor: input.actor,
+    adminEmail: input.adminEmail,
   });
   await sendAdminEmail({
     event: "customer_created",

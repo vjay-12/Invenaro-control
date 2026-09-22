@@ -57,6 +57,7 @@ describe("Admin Actions Service Layer Tests", () => {
     const result = await createCustomerWithLicense({
       companyName: "Acme Logistics Test",
       domain: "acme.test.invenaro.com",
+      adminEmail: "admin@acme.test",
       plan: "business",
       expiresAt,
       graceDays: 14,
@@ -97,6 +98,7 @@ describe("Admin Actions Service Layer Tests", () => {
     const created = await createCustomerWithLicense({
       companyName: "Plan Change Test",
       domain: "plan.test.com",
+      adminEmail: "admin@plan.test",
       plan: "basic",
       expiresAt: new Date("2028-01-01"),
       actor: "cli:testuser",
@@ -146,6 +148,7 @@ describe("Admin Actions Service Layer Tests", () => {
     const created = await createCustomerWithLicense({
       companyName: "Key Invalidation Test",
       domain: "reissue.test.com",
+      adminEmail: "admin@reissue.test",
       plan: "business",
       expiresAt: new Date("2028-01-01"),
       actor: "cli:testuser",
@@ -194,6 +197,7 @@ describe("Admin Actions Service Layer Tests", () => {
     const result = await createCustomerWithLicense({
       companyName: "Resilience Test Corp",
       domain: "resilience.test.com",
+      adminEmail: "admin@resilience.test",
       plan: "business",
       expiresAt: new Date("2028-01-01"),
       actor: "admin:admin@example.com",

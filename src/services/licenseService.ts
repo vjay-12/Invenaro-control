@@ -136,6 +136,7 @@ export async function verifyLicense(input: VerifyInput): Promise<VerifyOutput> {
     licenseExpiresAt: license.expiresAt.toISOString(),
     graceDays: license.graceDays,
     domain: trimmedDomain,
+    ...(license.adminEmail ? { adminEmail: license.adminEmail } : {}),
   });
 
   // 7. Update deployment record asynchronously (fail-safe)

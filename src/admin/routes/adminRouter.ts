@@ -1181,6 +1181,7 @@ adminRouter.post("/customers/new", async (req, res) => {
     const result = await createCustomerWithLicense({
       companyName: body.companyName,
       domain: body.domain,
+      adminEmail: body.adminEmail,
       plan: body.plan,
       expiresAt: expiresDate,
       graceDays,
