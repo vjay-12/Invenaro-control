@@ -16,34 +16,13 @@ const SetModuleSchema = z.object({
 });
 
 export async function licenseSetModuleCommand(
-  id: string,
-  module: string,
-  state: string
+  _id: string,
+  _module: string,
+  _state: string
 ) {
-  const parsed = SetModuleSchema.safeParse({ id, module, state });
-  if (!parsed.success) {
-    console.error("❌ Invalid arguments:");
-    parsed.error.errors.forEach((e) => console.error(`   - ${e.message}`));
-    process.exit(1);
-  }
-
-  const { id: licenseId, module: moduleName, state: moduleState } = parsed.data;
-  const enabled = moduleState === "on";
-  const actor = `cli:${os.userInfo().username || process.env.USERNAME || process.env.USER || "local"}`;
-
-  try {
-    await setModule({
-      licenseId,
-      module: moduleName,
-      enabled,
-      actor,
-    });
-
-    console.log(
-      `✅ License ${licenseId} module override set: ${moduleName} -> ${enabled ? "ON" : "OFF"}`
-    );
-  } catch (error) {
-    console.error("❌ Failed to set module override:", error);
-    process.exit(1);
-  }
+  console.error(
+    "❌ Module overrides are disabled. Module entitlements are strictly plan-based.\n" +
+    "   Use 'license:change-plan <id> <basic|business|enterprise>' to adjust authorized modules."
+  );
+  process.exit(1);
 }

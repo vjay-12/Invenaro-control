@@ -295,6 +295,48 @@ export function renderLayout(opts: LayoutOptions): string {
         }
       });
     });
+
+    const planSelect = document.getElementById('plan');
+    if (planSelect) {
+      const updatePlanModules = () => {
+        const plan = planSelect.value;
+        document.querySelectorAll('[data-plan-module]').forEach(el => {
+          const plans = el.getAttribute('data-plan-module') || '';
+          const isIncluded = plans.split(',').map(s => s.trim()).includes(plan);
+          const badge = el.querySelector('.module-status-badge');
+          if (isIncluded) {
+            el.style.opacity = '1';
+            el.style.borderColor = '#166534';
+            if (badge) {
+              badge.className = 'badge badge-active module-status-badge';
+              badge.textContent = 'Included';
+            }
+          } else {
+            el.style.opacity = '0.6';
+            el.style.borderColor = '#334155';
+            if (badge) {
+              badge.className = 'badge badge-suspended module-status-badge';
+              badge.textContent = 'Not Included';
+            }
+          }
+        });
+        const summaryBadge = document.getElementById('planSummaryBadge');
+        if (summaryBadge) {
+          if (plan === 'basic') {
+            summaryBadge.className = 'badge badge-basic';
+            summaryBadge.textContent = 'Basic: 0/13 Modules (Core App Only)';
+          } else if (plan === 'business') {
+            summaryBadge.className = 'badge badge-business';
+            summaryBadge.textContent = 'Business: 9/13 Modules Included';
+          } else if (plan === 'enterprise') {
+            summaryBadge.className = 'badge badge-enterprise';
+            summaryBadge.textContent = 'Enterprise: All 13 Modules Included';
+          }
+        }
+      };
+      planSelect.addEventListener('change', updatePlanModules);
+      updatePlanModules();
+    }
   </script>
 </body>
 </html>`.value;

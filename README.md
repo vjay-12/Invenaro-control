@@ -110,10 +110,15 @@ npm run cli license:create -- --customer "<customerId>" --plan "business" --expi
 npm run cli license:show "<licenseId or keyPrefix>"
 ```
 
-### 4. Upgrade or Downgrade Plan
+### 4. Change Plan & Issue New License
+Changing a customer's subscription tier never modifies existing licenses in-place. It immediately suspends the current active license and generates a brand-new license with a new plaintext license key:
 ```bash
-npm run cli license:set-plan "<licenseId>" "enterprise"
+npm run cli license:change-plan "<customerId or licenseId>" "business"
+# or using legacy alias:
+npm run cli license:set-plan "<customerId or licenseId>" "business"
 ```
+> [!WARNING]
+> The new license key is printed **ONCE** upon plan change. The previous license key is immediately suspended and will be rejected at `/v1/licenses/verify`.
 
 ### 5. Configure Module Overrides (Add-ons)
 Enable or disable specific modules independently of plan defaults:

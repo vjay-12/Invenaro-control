@@ -41,14 +41,15 @@ describe("planDefaults", () => {
     }
   });
 
-  it("should apply module overrides on top of plan defaults", () => {
+  it("should strictly enforce plan defaults and ignore any manual overrides", () => {
     const effective = computeEffectiveModules("business", [
       { module: "batch_expiry", enabled: true },
       { module: "multi_godown", enabled: false },
     ]);
 
-    expect(effective.batch_expiry).toBe(true); // overridden from false to true
-    expect(effective.multi_godown).toBe(false); // overridden from true to false
-    expect(effective.gst).toBe(true); // untouched from plan default
+    // Manual overrides are ignored: strictly follows business plan defaults
+    expect(effective.batch_expiry).toBe(false);
+    expect(effective.multi_godown).toBe(true);
+    expect(effective.gst).toBe(true);
   });
 });

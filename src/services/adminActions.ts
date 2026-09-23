@@ -127,125 +127,206 @@ export async function createCustomerWithLicense(
   };
 }
 
-export async function changePlan(params: {
-  licenseId: string;
+export interface ChangePlanInput {
+  customerId?: string;
+  licenseId?: string;
   plan: "basic" | "business" | "enterprise";
   actor: string;
-}) {
-  const result = await prisma.$transaction(async (tx) => {
-    const license = await tx.license.findUniqueOrThrow({
+}
+
+export async function changePlanAndIssueNewLicense(params: ChangePlanInput) {
+  if (!params.customerId && !params.licenseId) {
+    throw new Error("Either customerId or licenseId must be provided.");
+  }
+
+  // 1. Locate customer
+  let customerId = params.customerId;
+  if (!customerId && params.licenseId) {
+    const lic = await prisma.license.findUnique({
       where: { id: params.licenseId },
+      select: { customerId: true },
+    });
+    if (lic) {
+      customerId = lic.customerId;
+    } else {
+      const cust = await prisma.customer.findUnique({
+        where: { id: params.licenseId },
+        select: { id: true },
+      });
+      if (cust) {
+        customerId = cust.id;
+      } else {
+        throw new Error(`Neither License nor Customer with ID '${params.licenseId}' found.`);
+      }
+    }
+  }
+
+  const customer = await prisma.customer.findUniqueOrThrow({
+    where: { id: customerId },
+    include: {
+      licenses: {
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  // Check currently active licenses for this customer
+  const currentActive = customer.licenses.filter((l) => l.status === "active");
+  const primaryLicense = currentActive[0] || customer.licenses[0];
+
+  if (primaryLicense && primaryLicense.plan === params.plan && primaryLicense.status === "active") {
+    throw new Error(`Customer '${customer.companyName}' is already on the '${params.plan}' plan.`);
+  }
+
+  // Generate completely new license key
+  const plainLicenseKey = generateLicenseKey();
+  const keyHash = hashLicenseKey(plainLicenseKey);
+  const keyPrefix = extractKeyPrefix(plainLicenseKey);
+
+  // Inherit expiration, grace period, and admin email from primary license
+  const expiresAt = primaryLicense ? primaryLicense.expiresAt : new Date(Date.now() + 365 * 24 * 3600 * 1000);
+  const graceDays = primaryLicense ? primaryLicense.graceDays : 14;
+  const adminEmail = primaryLicense?.adminEmail || customer.contactEmail || null;
+  const oldPlan = primaryLicense?.plan || "basic";
+
+  const result = await prisma.$transaction(async (tx) => {
+    // 2. Atomically suspend all currently active licenses for this customer ONLY
+    if (currentActive.length > 0) {
+      await tx.license.updateMany({
+        where: {
+          customerId: customer.id,
+          status: "active",
+        },
+        data: {
+          status: "suspended",
+        },
+      });
+
+      // Record audit logs for suspending previous active license(s)
+      for (const oldLic of currentActive) {
+        await tx.auditLog.create({
+          data: {
+            actor: params.actor,
+            action: "license:suspend",
+            entityType: "License",
+            entityId: oldLic.id,
+            before: { status: "active", plan: oldLic.plan },
+            after: {
+              status: "suspended",
+              reason: `Plan changed to ${params.plan}. Superseded by new license.`,
+            },
+          },
+        });
+      }
+    }
+
+    // 3. Create the brand-new license with the selected plan and status: active
+    const newLicense = await tx.license.create({
+      data: {
+        customerId: customer.id,
+        keyHash,
+        keyPrefix,
+        plan: params.plan as LicensePlan,
+        expiresAt,
+        graceDays,
+        status: "active",
+        adminEmail,
+      },
       include: { customer: true },
     });
 
-    const oldPlan = license.plan;
-    const updated = await tx.license.update({
-      where: { id: params.licenseId },
-      data: { plan: params.plan as LicensePlan },
-      include: { customer: true },
+    // 4. Audit logs for plan change and new license issuance
+    await tx.auditLog.create({
+      data: {
+        actor: params.actor,
+        action: "license:plan-change",
+        entityType: "License",
+        entityId: newLicense.id,
+        before: primaryLicense
+          ? {
+              licenseId: primaryLicense.id,
+              plan: oldPlan,
+              keyPrefix: primaryLicense.keyPrefix,
+              status: primaryLicense.status,
+            }
+          : undefined,
+        after: {
+          licenseId: newLicense.id,
+          plan: params.plan,
+          keyPrefix: newLicense.keyPrefix,
+          status: "active",
+          ...(primaryLicense ? { supersedesLicenseId: primaryLicense.id } : {}),
+        },
+      },
     });
 
     await tx.auditLog.create({
       data: {
         actor: params.actor,
-        action: "license:set-plan",
-        entityType: "License",
-        entityId: params.licenseId,
-        before: { plan: oldPlan },
-        after: { plan: params.plan },
+        action: "customer:change-plan",
+        entityType: "Customer",
+        entityId: customer.id,
+        before: { plan: oldPlan, licenseId: primaryLicense?.id },
+        after: {
+          plan: params.plan,
+          licenseId: newLicense.id,
+          keyPrefix: newLicense.keyPrefix,
+        },
       },
     });
 
-    return { updated, oldPlan };
+    return {
+      customer,
+      oldLicense: primaryLicense,
+      newLicense,
+      plainLicenseKey,
+    };
   });
 
+  // 5. Asynchronously send notification email (outside transaction)
   const emailPayload = buildPlanChangedEmail({
-    customerId: result.updated.customerId,
-    companyName: result.updated.customer.companyName,
-    licenseId: result.updated.id,
-    oldPlan: result.oldPlan,
-    newPlan: result.updated.plan,
+    customerId: result.customer.id,
+    companyName: result.customer.companyName,
+    oldLicenseId: result.oldLicense?.id,
+    newLicenseId: result.newLicense.id,
+    oldKeyPrefix: result.oldLicense?.keyPrefix,
+    newKeyPrefix: result.newLicense.keyPrefix,
+    oldPlan,
+    newPlan: params.plan,
     actor: params.actor,
   });
+
   await sendAdminEmail({
     event: "plan_changed",
     subject: emailPayload.subject,
     text: emailPayload.text,
     html: emailPayload.html,
     entityType: "License",
-    entityId: result.updated.id,
+    entityId: result.newLicense.id,
   });
 
-  return result.updated;
+  return result;
 }
 
-export async function setModule(params: {
+// Deprecated in-place wrapper that now safely delegates to changePlanAndIssueNewLicense
+export async function changePlan(params: {
+  licenseId?: string;
+  customerId?: string;
+  plan: "basic" | "business" | "enterprise";
+  actor: string;
+}) {
+  return changePlanAndIssueNewLicense(params);
+}
+
+export async function setModule(_params: {
   licenseId: string;
   module: string;
   enabled: boolean;
   actor: string;
 }) {
-  if (!MODULE_NAMES.includes(params.module as ModuleName)) {
-    throw new Error(`Invalid module name: ${params.module}`);
-  }
-
-  const result = await prisma.$transaction(async (tx) => {
-    const license = await tx.license.findUniqueOrThrow({
-      where: { id: params.licenseId },
-      include: { customer: true },
-    });
-
-    const moduleRecord = await tx.licenseModule.upsert({
-      where: {
-        licenseId_module: {
-          licenseId: params.licenseId,
-          module: params.module,
-        },
-      },
-      create: {
-        licenseId: params.licenseId,
-        module: params.module,
-        enabled: params.enabled,
-      },
-      update: {
-        enabled: params.enabled,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        actor: params.actor,
-        action: "license:set-module",
-        entityType: "LicenseModule",
-        entityId: moduleRecord.id,
-        after: {
-          licenseId: params.licenseId,
-          module: params.module,
-          enabled: params.enabled,
-        },
-      },
-    });
-
-    return { license, moduleRecord };
-  });
-
-  const emailPayload = buildModulesChangedEmail({
-    companyName: result.license.customer.companyName,
-    licenseId: result.license.id,
-    module: params.module,
-    enabled: params.enabled,
-    actor: params.actor,
-  });
-  await sendAdminEmail({
-    event: "modules_changed",
-    subject: emailPayload.subject,
-    text: emailPayload.text,
-    html: emailPayload.html,
-    entityType: "License",
-    entityId: result.license.id,
-  });
-
-  return result.moduleRecord;
+  throw new Error(
+    "Individual module overrides are disabled. Module configuration is completely plan-based."
+  );
 }
 
 export async function renewLicense(params: {
@@ -353,6 +434,16 @@ export async function reinstateLicense(params: {
     const license = await tx.license.findUniqueOrThrow({
       where: { id: params.licenseId },
       include: { customer: true },
+    });
+
+    // Ensure only one active license exists for this customer at a time
+    await tx.license.updateMany({
+      where: {
+        customerId: license.customerId,
+        status: "active",
+        NOT: { id: license.id },
+      },
+      data: { status: "suspended" },
     });
 
     const updated = await tx.license.update({

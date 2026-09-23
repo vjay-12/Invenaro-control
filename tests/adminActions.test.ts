@@ -94,7 +94,7 @@ describe("Admin Actions Service Layer Tests", () => {
     expect(emailArgs.html).not.toContain(result.plainLicenseKey);
   });
 
-  it("changePlan: computes UPGRADED vs DOWNGRADED properly in notifications", async () => {
+  it("changePlan: suspends old license, issues new active license, and notifies properly", async () => {
     const created = await createCustomerWithLicense({
       companyName: "Plan Change Test",
       domain: "plan.test.com",
@@ -105,11 +105,23 @@ describe("Admin Actions Service Layer Tests", () => {
     });
 
     // Upgrade from basic to business
-    await changePlan({
-      licenseId: created.license.id,
+    const step1 = await changePlan({
+      customerId: created.customer.id,
       plan: "business",
       actor: "admin:admin@example.com",
     });
+
+    expect(step1.newLicense.id).not.toBe(created.license.id);
+    expect(step1.newLicense.plan).toBe("business");
+    expect(step1.newLicense.status).toBe("active");
+    expect(step1.plainLicenseKey).toBeDefined();
+    expect(step1.plainLicenseKey).not.toBe(created.plainLicenseKey);
+
+    // Verify old license is now suspended in DB
+    const oldLicenseInDb = await prisma.license.findUnique({
+      where: { id: created.license.id },
+    });
+    expect(oldLicenseInDb?.status).toBe("suspended");
 
     const upgradeNotification = await prisma.notification.findFirst({
       where: { event: "plan_changed" },
@@ -118,11 +130,19 @@ describe("Admin Actions Service Layer Tests", () => {
     expect(upgradeNotification?.subject).toContain("UPGRADED");
 
     // Upgrade from business to enterprise
-    await changePlan({
-      licenseId: created.license.id,
+    const step2 = await changePlan({
+      customerId: created.customer.id,
       plan: "enterprise",
       actor: "admin:admin@example.com",
     });
+
+    expect(step2.newLicense.plan).toBe("enterprise");
+    expect(step2.newLicense.status).toBe("active");
+
+    const prevLicenseInDb = await prisma.license.findUnique({
+      where: { id: step1.newLicense.id },
+    });
+    expect(prevLicenseInDb?.status).toBe("suspended");
 
     const enterpriseNotification = await prisma.notification.findFirst({
       where: { event: "plan_changed" },
@@ -131,17 +151,27 @@ describe("Admin Actions Service Layer Tests", () => {
     expect(enterpriseNotification?.subject).toContain("UPGRADED");
 
     // Downgrade from enterprise to basic
-    await changePlan({
-      licenseId: created.license.id,
+    const step3 = await changePlan({
+      customerId: created.customer.id,
       plan: "basic",
       actor: "admin:admin@example.com",
     });
+
+    expect(step3.newLicense.plan).toBe("basic");
+    expect(step3.newLicense.status).toBe("active");
 
     const downgradeNotification = await prisma.notification.findFirst({
       where: { event: "plan_changed" },
       orderBy: { createdAt: "desc" },
     });
     expect(downgradeNotification?.subject).toContain("DOWNGRADED");
+
+    // Verify only 1 active license exists for this customer in DB
+    const activeLicenses = await prisma.license.findMany({
+      where: { customerId: created.customer.id, status: "active" },
+    });
+    expect(activeLicenses).toHaveLength(1);
+    expect(activeLicenses[0].id).toBe(step3.newLicense.id);
   });
 
   it("reissueLicenseKey: invalidates old key immediately at verify endpoint", async () => {

@@ -93,7 +93,7 @@ All emails are sent via Nodemailer to `ADMIN_EMAIL` with sanitized subjects and 
 
 ### Business Events:
 - `customer_created`: Customer, domain, plan, expiry date, and actor. (License key is never included).
-- `plan_changed`: Specifies `[UPGRADED]` or `[DOWNGRADED]` based on tier hierarchy (`basic` < `business` < `enterprise`).
+- `plan_changed`: Specifies `[UPGRADED]` or `[DOWNGRADED]` based on tier hierarchy (`basic` < `business` < `enterprise`), recording the suspension of the previous license and the issuance of the new active license.
 - `modules_changed`: Enabled add-on modules list.
 - `license_renewed`: Updated expiration date.
 - `license_suspended`: License suspension notice.
@@ -154,7 +154,7 @@ All emails are sent via Nodemailer to `ADMIN_EMAIL` with sanitized subjects and 
 - [ ] **2FA Enrollment**: Scan the rendered QR code with an authenticator app, enter the 6-digit code, and verify that 10 recovery codes are displayed once. Confirm receipt of the `two_factor_enabled` email.
 - [ ] **Dashboard Access**: Access `/admin` and confirm customer/license metric cards render correctly.
 - [ ] **Customer Creation**: Create a customer at `/admin/customers/new`. Verify that the full license key is displayed once with a functional copy button. Confirm receipt of the `customer_created` email without the raw key.
-- [ ] **Plan Change**: Navigate to the created customer, change their plan, and verify that the resulting email indicates `[UPGRADED]` or `[DOWNGRADED]`.
+- [ ] **Plan Change**: Navigate to the created customer, select "Change Plan & Issue New License", confirm the prompt, verify the new key is shown once and the previous license is suspended in License History, and verify the resulting email indicates `[UPGRADED]` or `[DOWNGRADED]`.
 - [ ] **Module Toggle & Renewal**: Toggle a module and renew the expiration date; verify audit log entries and email dispatches.
 - [ ] **Key Reissue**: Reissue the license key. Verify the new key is shown once and the previous key returns 401 when verified at `/v1/licenses/verify`.
 - [ ] **Forgot Password**: Use `/admin/forgot` to request a password reset, follow the link, set a new password, and verify that 2FA is still enforced on the subsequent login.

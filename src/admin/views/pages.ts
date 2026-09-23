@@ -1,5 +1,6 @@
 import { html, raw, RawString } from "./template.js";
-import { MODULE_NAMES } from "../../contract/license-token.js";
+import { MODULE_NAMES, LicensePlanType } from "../../contract/license-token.js";
+import { MODULE_METADATA, getPlanDefaultModules } from "../../services/planDefaults.js";
 
 // ----------------------------------------------------------------------
 // Auth & Setup Pages
@@ -195,31 +196,33 @@ export function renderSetup2faPage(params: {
   error?: string;
 }): RawString {
   return html`
-    <div class="auth-card" style="max-width: 480px;">
-      <h1 class="auth-title">Enroll in Two-Factor Authentication</h1>
-      <p class="auth-subtitle">Scan the QR code with your authenticator app (e.g. Google Authenticator, Authy, 1Password).</p>
+    <div class="auth-card" style="max-width: 420px; margin: 12px auto; padding: 20px 24px;">
+      <h1 class="auth-title" style="font-size: 20px; margin-bottom: 4px;">Enroll in Two-Factor Authentication</h1>
+      <p class="auth-subtitle" style="font-size: 13px; margin-bottom: 12px; line-height: 1.35;">Scan the QR code with your authenticator app (e.g. Google Authenticator, Authy, 1Password).</p>
 
-      ${params.error ? raw(html`<div class="alert alert-error">${params.error}</div>`) : ""}
+      ${params.error ? raw(html`<div class="alert alert-error" style="margin-bottom: 10px; padding: 8px 12px; font-size: 13px;">${params.error}</div>`) : ""}
 
-      <div style="text-align: center; margin: 20px 0; background: #ffffff; padding: 16px; border-radius: 8px; display: inline-block; width: 100%;">
-        <img src="${params.qrDataUri}" alt="2FA QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto;">
-      </div>
-
-      <div style="margin-bottom: 20px;">
-        <label>Manual Entry Key</label>
-        <div class="flex-row">
-          <input type="text" id="manualSecret" value="${params.secretManual}" readonly class="mono" style="background: #1e293b;">
-          <button type="button" class="btn btn-secondary" data-copy="manualSecret">Copy</button>
+      <div style="text-align: center; margin: 10px 0 12px;">
+        <div style="display: inline-block; background: #ffffff; padding: 8px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
+          <img src="${params.qrDataUri}" alt="2FA QR Code" style="width: 140px; height: 140px; display: block;">
         </div>
       </div>
 
-      <form method="POST" action="/admin/setup/2fa">
+      <div style="margin-bottom: 12px;">
+        <label for="manualSecret" style="font-size: 12px; margin-bottom: 4px;">Manual Entry Key</label>
+        <div class="flex-row" style="gap: 8px;">
+          <input type="text" id="manualSecret" value="${params.secretManual}" readonly class="mono" style="background: #0f172a; padding: 7px 10px; font-size: 12px;">
+          <button type="button" class="btn btn-secondary" data-copy="manualSecret" style="padding: 7px 14px; font-size: 12px; white-space: nowrap;">Copy</button>
+        </div>
+      </div>
+
+      <form method="POST" action="/admin/setup/2fa" style="margin: 0;">
         <input type="hidden" name="_csrf" value="${params.csrfToken}">
-        <div class="form-group">
-          <label for="code">Enter 6-Digit Code from App</label>
-          <input type="text" id="code" name="code" required autofocus placeholder="000000" class="mono" maxlength="6">
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label for="code" style="font-size: 12px; margin-bottom: 4px;">Enter 6-Digit Code from App</label>
+          <input type="text" id="code" name="code" required autofocus placeholder="000000" class="mono" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" style="padding: 8px 10px; font-size: 15px; letter-spacing: 2px;">
         </div>
-        <button type="submit" class="btn btn-block">Enable 2FA & View Recovery Codes</button>
+        <button type="submit" class="btn btn-block auth-submit-btn" style="padding: 10px 16px; font-size: 14px;">Enable 2FA &amp; View Recovery Codes</button>
       </form>
     </div>
   `;
@@ -491,6 +494,17 @@ export function renderCustomerNewPage(params: {
   const d = new Date();
   d.setFullYear(d.getFullYear() + 1);
   const defaultExpiry = d.toISOString().slice(0, 10);
+  const selectedPlan = (params.formData?.plan as LicensePlanType) || "business";
+  const initialModules = getPlanDefaultModules(selectedPlan);
+  let selectedPlanSummary = "Business: 9/13 Modules Included";
+  let selectedPlanBadgeClass = "badge-business";
+  if (selectedPlan === "basic") {
+    selectedPlanSummary = "Basic: 0/13 Modules (Core App Only)";
+    selectedPlanBadgeClass = "badge-basic";
+  } else if (selectedPlan === "enterprise") {
+    selectedPlanSummary = "Enterprise: All 13 Modules Included";
+    selectedPlanBadgeClass = "badge-enterprise";
+  }
 
   return html`
     <div style="max-width: 640px; margin: 0 auto;">
@@ -527,9 +541,9 @@ export function renderCustomerNewPage(params: {
             <div class="form-group" style="flex: 1;">
               <label for="plan">License Plan *</label>
               <select id="plan" name="plan" required>
-                <option value="basic" ${params.formData?.plan === "basic" ? "selected" : ""}>Basic</option>
-                <option value="business" ${params.formData?.plan === "business" || !params.formData?.plan ? "selected" : ""}>Business</option>
-                <option value="enterprise" ${params.formData?.plan === "enterprise" ? "selected" : ""}>Enterprise</option>
+                <option value="basic" ${selectedPlan === "basic" ? "selected" : ""}>Basic</option>
+                <option value="business" ${selectedPlan === "business" ? "selected" : ""}>Business</option>
+                <option value="enterprise" ${selectedPlan === "enterprise" ? "selected" : ""}>Enterprise</option>
               </select>
             </div>
             <div class="form-group" style="flex: 1;">
@@ -539,6 +553,40 @@ export function renderCustomerNewPage(params: {
             <div class="form-group" style="flex: 0.7;">
               <label for="graceDays">Grace Days</label>
               <input type="number" id="graceDays" name="graceDays" min="0" value="${params.formData?.graceDays || "14"}">
+            </div>
+          </div>
+
+          <!-- Read-Only Plan Modules Overview -->
+          <div style="margin-bottom: 20px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <span style="font-size: 13px; font-weight: 700; color: #ffffff;">Included Plan Modules &amp; Features</span>
+                <span style="font-size: 11px; color: #94a3b8; display: block;">Read-only summary of features authorized by the chosen plan tier.</span>
+              </div>
+              <span id="planSummaryBadge" class="badge ${selectedPlanBadgeClass}" style="font-size: 11px;">
+                ${selectedPlanSummary}
+              </span>
+            </div>
+
+            <div id="planModulesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px;">
+              ${MODULE_NAMES.map((mod) => {
+                const info = MODULE_METADATA[mod];
+                const isIncluded = initialModules[mod];
+                const supportedPlans = mod in { batch_expiry: 1, barcode: 1, ai_data_assistant: 1, ai_knowledge_assistant: 1 }
+                  ? "enterprise"
+                  : "business,enterprise";
+                return html`
+                  <div data-plan-module="${supportedPlans}" style="background: #1e293b; padding: 8px 10px; border-radius: 6px; border: 1px solid ${isIncluded ? "#166534" : "#334155"}; display: flex; justify-content: space-between; align-items: center; ${isIncluded ? "" : "opacity: 0.6;"}">
+                    <div style="min-width: 0; margin-right: 6px;">
+                      <div style="font-size: 12px; font-weight: 600; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${info?.description || mod}">${info?.name || mod}</div>
+                      <div style="font-size: 10px; color: #94a3b8;" class="mono">${mod}</div>
+                    </div>
+                    <span class="badge ${isIncluded ? "badge-active" : "badge-suspended"} module-status-badge" style="font-size: 10px; padding: 2px 6px; white-space: nowrap;">
+                      ${isIncluded ? "Included" : "Not Included"}
+                    </span>
+                  </div>
+                `;
+              })}
             </div>
           </div>
 
@@ -659,12 +707,85 @@ export function renderReissuedKeySuccessPage(params: {
   `;
 }
 
+export function renderPlanChangedSuccessPage(params: {
+  customer: { id: string; companyName: string };
+  oldLicense?: { id: string; keyPrefix: string; plan: string };
+  newLicense: { id: string; keyPrefix: string; plan: string; expiresAt: Date };
+  plainLicenseKey: string;
+}): RawString {
+  const oldPlan = params.oldLicense?.plan || "N/A";
+  const newPlan = params.newLicense.plan;
+
+  return html`
+    <div style="max-width: 680px; margin: 40px auto;">
+      <div class="alert alert-success" style="font-size: 15px; margin-bottom: 20px;">
+        <strong style="font-size: 16px; display: block; margin-bottom: 4px;">✅ Plan Changed &amp; New License Issued</strong>
+        Subscription plan for <strong>${params.customer.companyName}</strong> updated from <span class="badge badge-${oldPlan}" style="text-transform: uppercase;">${oldPlan}</span> to <span class="badge badge-${newPlan}" style="text-transform: uppercase;">${newPlan}</span>.
+      </div>
+
+      <div class="alert alert-warning" style="font-size: 15px;">
+        <strong style="font-size: 16px; display: block; margin-bottom: 6px;">⚠️ COPY THIS NEW LICENSE KEY NOW:</strong>
+        This plaintext license key is shown <strong>exactly once</strong> directly from memory. It is stored only as a cryptographic hash in the database and <strong>cannot be viewed or recovered again</strong>.
+      </div>
+
+      <div class="card">
+        <h2 class="card-title" style="font-size: 18px; margin-bottom: 12px;">🔑 New License Key (${newPlan.toUpperCase()} Plan)</h2>
+        <div class="key-box" id="newPlanKeyBox">${params.plainLicenseKey}</div>
+
+        <button type="button" class="btn" data-copy="newPlanKeyBox" style="margin-bottom: 24px;">Copy New License Key</button>
+
+        <div class="card-header">
+          <h3 class="card-title">License Lifecycle Transition</h3>
+        </div>
+
+        <table style="margin-bottom: 24px;">
+          <tr>
+            <td style="width: 160px; color: #94a3b8;">Customer</td>
+            <td><strong>${params.customer.companyName}</strong> (${params.customer.id})</td>
+          </tr>
+          ${params.oldLicense ? html`
+          <tr>
+            <td style="color: #94a3b8;">Previous License</td>
+            <td>
+              <span class="mono">${params.oldLicense.keyPrefix}...</span>
+              <span class="badge badge-suspended" style="margin-left: 8px;">SUSPENDED</span>
+              <span class="badge badge-${params.oldLicense.plan}" style="margin-left: 4px; text-transform: uppercase;">${params.oldLicense.plan}</span>
+            </td>
+          </tr>
+          ` : ""}
+          <tr>
+            <td style="color: #94a3b8;">New Active License</td>
+            <td>
+              <span class="mono" style="color: #38bdf8; font-weight: 600;">${params.newLicense.keyPrefix}...</span>
+              <span class="badge badge-active" style="margin-left: 8px;">ACTIVE</span>
+              <span class="badge badge-${params.newLicense.plan}" style="margin-left: 4px; text-transform: uppercase;">${params.newLicense.plan}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: #94a3b8;">New License ID</td>
+            <td class="mono" style="font-size: 13px;">${params.newLicense.id}</td>
+          </tr>
+          <tr>
+            <td style="color: #94a3b8;">Expiration Date</td>
+            <td>${params.newLicense.expiresAt.toISOString().slice(0, 10)}</td>
+          </tr>
+        </table>
+
+        <div class="flex-row">
+          <a href="/admin/customers/${params.customer.id}" class="btn">View Customer Profile</a>
+          <a href="/admin/customers" class="btn btn-secondary">Customer List</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderCustomerDetailPage(data: {
   customer: any;
   license: any;
   computedStatus: string;
   effectiveModules: Record<string, boolean>;
-  overrides: Record<string, boolean>;
+  overrides?: Record<string, boolean>;
   deployments: any[];
   auditLogs: any[];
   csrfToken: string;
@@ -722,16 +843,16 @@ export function renderCustomerDetailPage(data: {
       </div>
 
       <div class="flex-row" style="flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
-        <!-- Change Plan Form -->
-        <form method="POST" action="/admin/customers/${c.id}/plan" class="flex-row" style="background: #0f172a; padding: 8px 12px; border-radius: 6px; border: 1px solid #334155;">
+        <!-- Change Plan & Issue New License Form -->
+        <form method="POST" action="/admin/customers/${c.id}/plan" class="flex-row" style="background: #0f172a; padding: 8px 12px; border-radius: 6px; border: 1px solid #334155; gap: 8px;" data-confirm="Changing the plan will immediately SUSPEND the current active license (${l.keyPrefix}...) and issue a BRAND-NEW license with a new key. Are you sure you want to proceed?">
           <input type="hidden" name="_csrf" value="${data.csrfToken}">
-          <label style="margin: 0; font-size: 13px;">Plan:</label>
+          <label style="margin: 0; font-size: 13px; font-weight: 600; color: #cbd5e1;">Plan:</label>
           <select name="plan" style="padding: 4px 8px; width: 120px; font-size: 13px;">
             <option value="basic" ${l.plan === "basic" ? "selected" : ""}>Basic</option>
             <option value="business" ${l.plan === "business" ? "selected" : ""}>Business</option>
             <option value="enterprise" ${l.plan === "enterprise" ? "selected" : ""}>Enterprise</option>
           </select>
-          <button type="submit" class="btn btn-secondary" style="padding: 4px 10px; font-size: 13px;">Update Plan</button>
+          <button type="submit" class="btn btn-secondary" style="padding: 4px 12px; font-size: 13px; white-space: nowrap;">Change Plan &amp; Issue New License</button>
         </form>
 
         <!-- Renew Form -->
@@ -762,28 +883,29 @@ export function renderCustomerDetailPage(data: {
         </form>
       </div>
 
-      <!-- Module Toggles -->
-      <div class="card-header" style="padding-top: 8px;">
-        <h3 style="margin: 0; font-size: 14px; color: #cbd5e1;">Effective Add-On Modules</h3>
+      <!-- Plan-Based Modules (Read-Only) -->
+      <div class="card-header" style="padding-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <h3 style="margin: 0; font-size: 14px; color: #cbd5e1;">Plan Modules &amp; Feature Entitlements</h3>
+          <span style="font-size: 12px; color: #94a3b8;">Module authorization is completely determined by the subscription plan (<strong>${l.plan}</strong>). To change modules, update the Plan above.</span>
+        </div>
+        <span class="badge badge-${l.plan}" style="font-size: 12px; text-transform: uppercase;">${l.plan} Plan</span>
       </div>
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 12px;">
         ${MODULE_NAMES.map((mod) => {
           const isEnabled = data.effectiveModules[mod];
-          const hasOverride = mod in data.overrides;
+          const info = MODULE_METADATA[mod];
           return html`
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 6px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <div style="font-size: 13px; font-weight: 600; color: #f1f5f9;">${mod}</div>
-                <div style="font-size: 11px; color: #94a3b8;">${hasOverride ? "Override" : "Plan Default"}</div>
+            <div style="background: #0f172a; padding: 10px 12px; border-radius: 6px; border: 1px solid ${isEnabled ? "#166534" : "#334155"}; display: flex; justify-content: space-between; align-items: center; ${isEnabled ? "" : "opacity: 0.6;"}">
+              <div style="min-width: 0; margin-right: 8px;">
+                <div style="font-size: 13px; font-weight: 600; color: ${isEnabled ? "#f1f5f9" : "#94a3b8"}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${info?.description || mod}">${info?.name || mod}</div>
+                <div style="font-size: 11px; color: ${isEnabled ? "#38bdf8" : "#64748b"}; font-family: ui-monospace, monospace;">${mod}</div>
               </div>
-              <form method="POST" action="/admin/customers/${c.id}/module" style="margin: 0;">
-                <input type="hidden" name="_csrf" value="${data.csrfToken}">
-                <input type="hidden" name="module" value="${mod}">
-                <input type="hidden" name="state" value="${isEnabled ? "off" : "on"}">
-                <button type="submit" class="btn ${isEnabled ? "btn-secondary" : ""}" style="padding: 3px 8px; font-size: 12px; ${isEnabled ? "background: #166534; color: #ffffff;" : "background: #334155;"}">
-                  ${isEnabled ? "ON" : "OFF"}
-                </button>
-              </form>
+              <div>
+                <span class="badge ${isEnabled ? "badge-active" : "badge-suspended"}" style="font-size: 11px; padding: 3px 8px; white-space: nowrap;">
+                  ${isEnabled ? "Included" : "Not Included"}
+                </span>
+              </div>
             </div>
           `;
         })}
@@ -849,6 +971,54 @@ export function renderCustomerDetailPage(data: {
       </div>
     </div>
 
+    <!-- Customer License History -->
+    <div class="card">
+      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h2 class="card-title">Customer License History</h2>
+          <span style="font-size: 12px; color: #94a3b8;">Full lifecycle history of all licenses issued to this customer. Plan changes issue a new license and suspend prior licenses.</span>
+        </div>
+        <span class="badge" style="background: #334155; color: #f1f5f9; font-size: 12px;">Total: ${(c.licenses || []).length}</span>
+      </div>
+      ${(!c.licenses || c.licenses.length === 0) ? html`
+        <p style="color: #94a3b8; margin: 0;">No licenses found for this customer.</p>
+      ` : html`
+        <div style="overflow-x: auto; width: 100%;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="text-align: left;">Key Prefix</th>
+                <th style="text-align: left;">Plan</th>
+                <th style="text-align: left;">Status</th>
+                <th style="text-align: left;">Admin Email</th>
+                <th style="text-align: left;">Expires At</th>
+                <th style="text-align: left;">Created At</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${c.licenses.map((lic: any) => html`
+                <tr style="${lic.id === l.id && lic.status === 'active' ? 'background: rgba(37, 99, 235, 0.08);' : ''}">
+                  <td>
+                    <span class="mono" style="font-weight: 600; color: ${lic.status === 'active' ? '#38bdf8' : '#94a3b8'};">${lic.keyPrefix}...</span>
+                    ${lic.id === l.id && lic.status === 'active' ? html`<span class="badge badge-active" style="margin-left: 8px; font-size: 10px; padding: 2px 6px;">CURRENT ACTIVE</span>` : ''}
+                  </td>
+                  <td><span class="badge badge-${lic.plan}" style="font-size: 11px; text-transform: uppercase;">${lic.plan}</span></td>
+                  <td>
+                    <span class="badge badge-${lic.status}" style="font-size: 11px;">
+                      ${lic.status.toUpperCase()}
+                    </span>
+                  </td>
+                  <td class="mono" style="font-size: 12px; color: #cbd5e1;">${lic.adminEmail || "None"}</td>
+                  <td style="font-size: 13px;">${lic.expiresAt.toISOString().slice(0, 10)}</td>
+                  <td style="font-size: 13px; color: #94a3b8;">${lic.createdAt.toISOString().slice(0, 16).replace("T", " ")}</td>
+                </tr>
+              `)}
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+
     <!-- Recent Audit Logs for Customer -->
     <div class="card">
       <div class="card-header">
@@ -857,26 +1027,36 @@ export function renderCustomerDetailPage(data: {
       ${data.auditLogs.length === 0 ? html`
         <p style="color: #94a3b8; margin: 0;">No audit events found.</p>
       ` : html`
-        <table>
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Action</th>
-              <th>Actor</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.auditLogs.map((log: any) => html`
+        <div style="overflow-x: auto; width: 100%;">
+          <table style="width: 100%; min-width: 680px; table-layout: fixed; border-collapse: collapse;">
+            <colgroup>
+              <col style="width: 170px;">
+              <col style="width: 160px;">
+              <col style="width: 220px;">
+              <col style="width: auto;">
+            </colgroup>
+            <thead>
               <tr>
-                <td>${log.createdAt.toISOString().slice(0, 19).replace("T", " ")}</td>
-                <td><span class="mono">${log.action}</span></td>
-                <td>${log.actor}</td>
-                <td class="mono" style="font-size: 12px; color: #94a3b8;">${JSON.stringify(log.after || log.before || {})}</td>
+                <th style="width: 170px; text-align: left; vertical-align: top;">Timestamp</th>
+                <th style="width: 160px; text-align: left; vertical-align: top;">Action</th>
+                <th style="width: 220px; text-align: left; vertical-align: top;">Actor</th>
+                <th style="text-align: left; vertical-align: top;">Details</th>
               </tr>
-            `)}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              ${data.auditLogs.map((log: any) => html`
+                <tr>
+                  <td style="vertical-align: top; white-space: nowrap; font-size: 13px;">${log.createdAt.toISOString().slice(0, 19).replace("T", " ")}</td>
+                  <td style="vertical-align: top; font-size: 13px;"><span class="mono" style="color: #38bdf8; font-weight: 500;">${log.action}</span></td>
+                  <td style="vertical-align: top; font-size: 13px; word-break: break-word; overflow-wrap: break-word;">${log.actor}</td>
+                  <td style="vertical-align: top;">
+                    <div class="mono" style="font-size: 12px; color: #94a3b8; line-height: 1.5; word-break: break-all; overflow-wrap: anywhere; white-space: pre-wrap;">${JSON.stringify(log.after || log.before || {})}</div>
+                  </td>
+                </tr>
+              `)}
+            </tbody>
+          </table>
+        </div>
       `}
     </div>
   `;

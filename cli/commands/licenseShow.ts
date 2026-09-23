@@ -55,12 +55,10 @@ export async function licenseShowCommand(identifier: string) {
     console.log(`   Grace Days:      ${license.graceDays} days`);
     console.log(`   Created At:      ${license.createdAt.toISOString()}`);
 
-    console.log("\n   Effective Modules:");
+    console.log(`\n   Plan Modules (${license.plan.toUpperCase()} tier):`);
     for (const [moduleName, enabled] of Object.entries(effectiveModules)) {
-      const isOverridden = license.modules.some((m) => m.module === moduleName);
-      const mark = enabled ? "✔ ENABLED" : "✖ DISABLED";
-      const overrideNote = isOverridden ? " (custom override)" : "";
-      console.log(`     - ${moduleName.padEnd(26)} : ${mark}${overrideNote}`);
+      const mark = enabled ? "✔ INCLUDED" : "✖ NOT INCLUDED";
+      console.log(`     - ${moduleName.padEnd(26)} : ${mark}`);
     }
     console.log("================================================================================");
   } catch (error) {

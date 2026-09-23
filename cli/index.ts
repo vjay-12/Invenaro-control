@@ -54,10 +54,11 @@ program
   .description("Display details, status, and effective modules for a license")
   .action((identifier) => licenseShowCommand(identifier));
 
-// license:set-plan <id> <plan>
+// license:change-plan / license:set-plan <id> <plan>
 program
-  .command("license:set-plan <id> <plan>")
-  .description("Change the plan tier for an existing license")
+  .command("license:change-plan <id> <plan>")
+  .alias("license:set-plan")
+  .description("Change customer plan: suspends active license and issues a new license with a new key")
   .action((id, plan) => licenseSetPlanCommand(id, plan));
 
 // license:set-module <id> <module> <on|off>

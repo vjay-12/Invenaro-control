@@ -48,6 +48,7 @@ import {
 import {
   createCustomerWithLicense,
   changePlan,
+  changePlanAndIssueNewLicense,
   setModule,
   renewLicense,
   suspendLicense,
@@ -72,6 +73,7 @@ import {
   renderCustomerNewPage,
   renderCustomerCreatedSuccessPage,
   renderReissuedKeySuccessPage,
+  renderPlanChangedSuccessPage,
   renderCustomerDetailPage,
   renderAuditLogsPage,
   renderNotificationsPage,
@@ -1239,7 +1241,7 @@ adminRouter.get("/customers/:id", async (req, res) => {
     return;
   }
 
-  const license = customer.licenses[0];
+  const license = customer.licenses.find((l) => l.status === "active") || customer.licenses[0];
   const computedStatus = computeLicenseStatus({
     customerStatus: customer.status,
     licenseStatus: license.status,
@@ -1247,21 +1249,19 @@ adminRouter.get("/customers/:id", async (req, res) => {
     graceDays: license.graceDays,
   });
 
-  const effectiveModules = computeEffectiveModules(license.plan, license.modules);
+  const effectiveModules = computeEffectiveModules(license.plan);
   const overrides: Record<string, boolean> = {};
-  license.modules.forEach((m) => {
-    overrides[m.module] = m.enabled;
-  });
 
+  const licenseIds = customer.licenses.map((l) => l.id);
   const auditLogs = await prisma.auditLog.findMany({
     where: {
       OR: [
         { entityType: "Customer", entityId: customer.id },
-        { entityType: "License", entityId: license.id },
+        { entityType: "License", entityId: { in: licenseIds } },
       ],
     },
     orderBy: { createdAt: "desc" },
-    take: 10,
+    take: 15,
   });
 
   sendHtml(
@@ -1292,51 +1292,40 @@ adminRouter.post("/customers/:id/plan", async (req, res) => {
   const plan = req.body.plan as "basic" | "business" | "enterprise";
 
   try {
-    const license = await prisma.license.findFirstOrThrow({
-      where: { customerId },
-      orderBy: { createdAt: "desc" },
-    });
-
-    await changePlan({
-      licenseId: license.id,
+    const result = await changePlanAndIssueNewLicense({
+      customerId,
       plan,
       actor: `admin:${auth.admin.email}`,
     });
 
-    res.redirect(`/admin/customers/${customerId}?success=Plan%20updated%20successfully.`);
+    sendHtml(
+      req,
+      res,
+      "Plan Changed & License Issued",
+      renderPlanChangedSuccessPage({
+        customer: result.customer,
+        oldLicense: result.oldLicense,
+        newLicense: result.newLicense,
+        plainLicenseKey: result.plainLicenseKey,
+      })
+    );
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to update plan.";
+    const msg = err instanceof Error ? err.message : "Failed to change plan.";
     res.redirect(`/admin/customers/${customerId}?error=${encodeURIComponent(msg)}`);
   }
 });
 
-// POST /admin/customers/:id/module
+// POST /admin/customers/:id/module (Disabled: module configuration is strictly plan-based)
 adminRouter.post("/customers/:id/module", async (req, res) => {
   const auth = req.adminAuth;
   if (!auth) return res.redirect("/admin/login");
 
   const customerId = req.params.id;
-  const module = req.body.module;
-  const enabled = req.body.state === "on";
-
-  try {
-    const license = await prisma.license.findFirstOrThrow({
-      where: { customerId },
-      orderBy: { createdAt: "desc" },
-    });
-
-    await setModule({
-      licenseId: license.id,
-      module,
-      enabled,
-      actor: `admin:${auth.admin.email}`,
-    });
-
-    res.redirect(`/admin/customers/${customerId}?success=Module%20override%20saved.`);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to toggle module.";
-    res.redirect(`/admin/customers/${customerId}?error=${encodeURIComponent(msg)}`);
-  }
+  res.redirect(
+    `/admin/customers/${customerId}?error=${encodeURIComponent(
+      "Individual module overrides are disabled. Modules are configured strictly by the subscription plan."
+    )}`
+  );
 });
 
 // POST /admin/customers/:id/renew

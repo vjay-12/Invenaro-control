@@ -244,7 +244,11 @@ export function buildCustomerCreatedEmail(params: {
 export function buildPlanChangedEmail(params: {
   customerId: string;
   companyName: string;
-  licenseId: string;
+  licenseId?: string;
+  oldLicenseId?: string;
+  newLicenseId?: string;
+  oldKeyPrefix?: string;
+  newKeyPrefix?: string;
   oldPlan: string;
   newPlan: string;
   actor: string;
@@ -252,14 +256,19 @@ export function buildPlanChangedEmail(params: {
   const direction = getPlanChangeDirection(params.oldPlan, params.newPlan);
   const title = `License Plan ${direction}: ${params.companyName} (${params.oldPlan} -> ${params.newPlan})`;
   const badgeClass = direction === "UPGRADED" ? "badge-upgrade" : "badge-downgrade";
+  const oldLic = params.oldLicenseId || params.licenseId || "N/A";
+  const newLic = params.newLicenseId || params.licenseId || "N/A";
+
   const body = `
     <p>The license plan for <strong>${escapeHtml(params.companyName)}</strong> was changed.</p>
     <p><span class="badge ${badgeClass}">${direction}</span></p>
     <p><strong>From:</strong> ${escapeHtml(params.oldPlan)}</p>
     <p><strong>To:</strong> ${escapeHtml(params.newPlan)}</p>
     <p><strong>Customer ID:</strong> ${escapeHtml(params.customerId)}</p>
-    <p><strong>License ID:</strong> ${escapeHtml(params.licenseId)}</p>
-    <p><strong>Updated By:</strong> ${escapeHtml(params.actor)}</p>
+    <p><strong>Previous License (Suspended):</strong> ${escapeHtml(oldLic)}${params.oldKeyPrefix ? ` (${escapeHtml(params.oldKeyPrefix)}...)` : ""}</p>
+    <p><strong>New License (Active):</strong> ${escapeHtml(newLic)}${params.newKeyPrefix ? ` (${escapeHtml(params.newKeyPrefix)}...)` : ""}</p>
+    <p><strong>Changed By:</strong> ${escapeHtml(params.actor)}</p>
+    <p><em>Note: The previous license has been suspended. A brand-new license key has been issued for the customer.</em></p>
   `;
   const { text, html } = baseTemplate(title, body);
   return { subject: title, text, html };
