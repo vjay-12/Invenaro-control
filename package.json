@@ -37,7 +37,7 @@
   "devDependencies": {
     "@rollup/wasm-node": "^4.63.4",
     "@types/bcryptjs": "^2.4.6",
-    "@types/express": "^5.0.0",
+    "@types/express": "^4.17.21",
     "@types/node": "^22.13.9",
     "@types/nodemailer": "^8.0.2",
     "@types/qrcode": "^1.5.6",
