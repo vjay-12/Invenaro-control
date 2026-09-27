@@ -63,7 +63,6 @@ export function verifyRequestOrigin(req: Request): boolean {
   }
 
   if (origin && typeof origin === "string") {
-    const config = getConfig();
     try {
       const originUrl = new URL(origin);
 
@@ -74,15 +73,16 @@ export function verifyRequestOrigin(req: Request): boolean {
       }
 
       // Match against configured APP_BASE_URL origin
-      if (config.APP_BASE_URL) {
-        const appBaseUrl = new URL(config.APP_BASE_URL);
-        if (originUrl.origin === appBaseUrl.origin) {
+      const appBaseUrl = process.env.APP_BASE_URL;
+      if (appBaseUrl) {
+        const configuredUrl = new URL(appBaseUrl);
+        if (originUrl.origin === configuredUrl.origin) {
           return true;
         }
       }
 
       // Allow standard local addresses in development
-      if (config.NODE_ENV === "development") {
+      if (process.env.NODE_ENV !== "production") {
         if (originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1") {
           return true;
         }

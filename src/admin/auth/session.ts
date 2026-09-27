@@ -18,8 +18,7 @@ export function isRequestSecure(req?: { secure?: boolean; headers?: Record<strin
 }
 
 export function getSessionCookieName(req?: Request | { secure?: boolean; headers?: Record<string, string | string[] | undefined> } | boolean): string {
-  const config = getConfig();
-  let isSecure = config.NODE_ENV === "production";
+  let isSecure = process.env.NODE_ENV === "production";
   if (typeof req === "boolean") {
     isSecure = req;
   } else if (req) {
