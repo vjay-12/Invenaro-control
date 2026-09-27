@@ -182,6 +182,59 @@ describe("Verify Endpoint & Error Handling", () => {
     expect(res.body.error).toBe("domain_mismatch");
   });
 
+  it("returns 200 when allowedDomains contains full URL and verify sends normalized hostname", async () => {
+    vi.mocked(prisma.license.findUnique).mockResolvedValue({
+      id: "lic_1",
+      customerId: "cust_1",
+      keyHash: validHash,
+      keyPrefix: validKey.slice(0, 8),
+      plan: "business",
+      status: "active",
+      expiresAt: new Date(Date.now() + 10000000),
+      graceDays: 14,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      customer: {
+        id: "cust_1",
+        companyName: "Invenaro Test",
+        status: "active",
+        notes: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deployments: [
+          {
+            id: "dep_1",
+            customerId: "cust_1",
+            domain: "https://invenaro-api.vercel.app/",
+            allowedDomains: ["https://invenaro-api.vercel.app/"],
+            vercelProjectId: null,
+            neonProjectId: null,
+            region: null,
+            appVersion: null,
+            rolloutWave: 1,
+            autoDeploy: true,
+            lastSeenAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      },
+      modules: [],
+    } as any);
+
+    const res = await request(app)
+      .post("/v1/licenses/verify")
+      .send({
+        licenseKey: validKey,
+        domain: "invenaro-api.vercel.app",
+        appVersion: "1.0.0",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBeDefined();
+    expect(res.body.status).toBe("active");
+  });
+
   it("returns 200 with signed token on valid active license", async () => {
     vi.mocked(prisma.license.findUnique).mockResolvedValue({
       id: "lic_1",

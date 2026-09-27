@@ -17,6 +17,7 @@ import {
 } from "./email.js";
 import { LicensePlan } from "@prisma/client";
 import { MODULE_NAMES, ModuleName } from "../contract/license-token.js";
+import { normalizeDomain, parseAllowedDomains } from "./domainUtils.js";
 
 export const CreateCustomerWithLicenseSchema = z.object({
   companyName: z.string().trim().min(1, "Company name is required"),
@@ -58,11 +59,14 @@ export async function createCustomerWithLicense(
       },
     });
 
+    const cleanDomain = normalizeDomain(input.domain) || input.domain;
+    const allowed = parseAllowedDomains([], input.domain);
+
     const deployment = await tx.deployment.create({
       data: {
         customerId: customer.id,
-        domain: input.domain,
-        allowedDomains: [input.domain],
+        domain: cleanDomain,
+        allowedDomains: allowed,
       },
     });
 
@@ -588,5 +592,84 @@ export async function updateCustomerContact(params: {
     });
 
     return updated;
+  });
+}
+
+export interface UpdateCustomerDomainInput {
+  customerId: string;
+  deploymentId?: string | null;
+  domain: string;
+  allowedDomains?: string[] | string | null;
+  actor: string;
+}
+
+export async function updateCustomerDomain(params: UpdateCustomerDomainInput) {
+  const trimmed = params.domain.trim();
+  if (!trimmed) {
+    throw new Error("Primary domain is required and cannot be empty.");
+  }
+
+  const primaryDomain = normalizeDomain(trimmed) || trimmed;
+  const allowedDomains = parseAllowedDomains(params.allowedDomains, trimmed);
+
+  return prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.findUniqueOrThrow({
+      where: { id: params.customerId },
+      include: {
+        deployments: { orderBy: { createdAt: "asc" } },
+      },
+    });
+
+    let targetDeployment = params.deploymentId
+      ? customer.deployments.find((d) => d.id === params.deploymentId)
+      : customer.deployments[0];
+
+    let updatedDeployment;
+    let beforeState: {
+      deploymentId?: string;
+      domain?: string;
+      allowedDomains?: string[];
+    } = {};
+
+    if (targetDeployment) {
+      beforeState = {
+        deploymentId: targetDeployment.id,
+        domain: targetDeployment.domain,
+        allowedDomains: targetDeployment.allowedDomains,
+      };
+
+      updatedDeployment = await tx.deployment.update({
+        where: { id: targetDeployment.id },
+        data: {
+          domain: primaryDomain,
+          allowedDomains,
+        },
+      });
+    } else {
+      updatedDeployment = await tx.deployment.create({
+        data: {
+          customerId: customer.id,
+          domain: primaryDomain,
+          allowedDomains,
+        },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actor: params.actor,
+        action: "deployment:update-domain",
+        entityType: "Customer",
+        entityId: customer.id,
+        before: beforeState,
+        after: {
+          deploymentId: updatedDeployment.id,
+          domain: updatedDeployment.domain,
+          allowedDomains: updatedDeployment.allowedDomains,
+        },
+      },
+    });
+
+    return updatedDeployment;
   });
 }

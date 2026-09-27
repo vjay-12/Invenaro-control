@@ -10,6 +10,7 @@ import { computeEffectiveModules } from "./planDefaults.js";
 import { signLicenseToken } from "./tokenService.js";
 import { checkThrottle } from "./throttleService.js";
 import { LicensePlanType } from "../contract/license-token.js";
+import { normalizeDomain } from "./domainUtils.js";
 
 export class VerifyError extends Error {
   constructor(
@@ -100,9 +101,16 @@ export async function verifyLicense(input: VerifyInput): Promise<VerifyOutput> {
 
   if (deploymentWithRestrictions) {
     const isAllowedLocalhost = isLocalhost && Boolean(config.ALLOW_LOCALHOST);
-    const domainIsAllowed = deploymentWithRestrictions.allowedDomains
-      .map((d) => d.toLowerCase())
-      .includes(trimmedDomain);
+    const normalizedInput = normalizeDomain(trimmedDomain);
+    const domainIsAllowed = deploymentWithRestrictions.allowedDomains.some((d) => {
+      const lower = d.toLowerCase().trim();
+      return (
+        lower === trimmedDomain ||
+        normalizeDomain(lower) === normalizedInput ||
+        normalizeDomain(lower) === trimmedDomain ||
+        lower === normalizedInput
+      );
+    });
 
     if (!domainIsAllowed && !isAllowedLocalhost) {
       throw new VerifyError(
@@ -141,9 +149,13 @@ export async function verifyLicense(input: VerifyInput): Promise<VerifyOutput> {
 
   // 7. Update deployment record asynchronously (fail-safe)
   try {
+    const normalizedInput = normalizeDomain(trimmedDomain);
     const matchingDeployment =
-      deployments.find((d) => d.domain.toLowerCase() === trimmedDomain) ||
-      deployments[0];
+      deployments.find(
+        (d) =>
+          d.domain.toLowerCase() === trimmedDomain ||
+          (normalizedInput && normalizeDomain(d.domain) === normalizedInput)
+      ) || deployments[0];
 
     if (matchingDeployment) {
       await prisma.deployment.update({

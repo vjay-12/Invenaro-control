@@ -55,6 +55,7 @@ import {
   reinstateLicense,
   reissueLicenseKey,
   updateCustomerContact,
+  updateCustomerDomain,
 } from "../../services/adminActions.js";
 import { computeLicenseStatus } from "../../services/statusLogic.js";
 import { computeEffectiveModules } from "../../services/planDefaults.js";
@@ -1280,11 +1281,13 @@ adminRouter.get("/customers/:id", async (req, res) => {
   const overrides: Record<string, boolean> = {};
 
   const licenseIds = customer.licenses.map((l) => l.id);
+  const deploymentIds = customer.deployments.map((d) => d.id);
   const auditLogs = await prisma.auditLog.findMany({
     where: {
       OR: [
         { entityType: "Customer", entityId: customer.id },
         { entityType: "License", entityId: { in: licenseIds } },
+        { entityType: "Deployment", entityId: { in: deploymentIds } },
       ],
     },
     orderBy: { createdAt: "desc" },
@@ -1482,6 +1485,33 @@ adminRouter.post("/customers/:id/contact", async (req, res) => {
     res.redirect(`/admin/customers/${customerId}?success=Contact%20information%20updated.`);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to update contact.";
+    res.redirect(`/admin/customers/${customerId}?error=${encodeURIComponent(msg)}`);
+  }
+});
+
+// POST /admin/customers/:id/domain
+adminRouter.post("/customers/:id/domain", async (req, res) => {
+  const auth = req.adminAuth;
+  if (!auth) return res.redirect("/admin/login");
+
+  const customerId = req.params.id;
+  try {
+    const { domain, allowedDomains, deploymentId } = req.body;
+    if (!domain || typeof domain !== "string" || !domain.trim()) {
+      throw new Error("Primary domain is required.");
+    }
+
+    await updateCustomerDomain({
+      customerId,
+      deploymentId: typeof deploymentId === "string" && deploymentId ? deploymentId : undefined,
+      domain,
+      allowedDomains: typeof allowedDomains === "string" ? allowedDomains : undefined,
+      actor: `admin:${auth.admin.email}`,
+    });
+
+    res.redirect(`/admin/customers/${customerId}?success=Authorized%20domain%20updated%20successfully.`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to update domain.";
     res.redirect(`/admin/customers/${customerId}?error=${encodeURIComponent(msg)}`);
   }
 });

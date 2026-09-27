@@ -337,6 +337,47 @@ export function renderLayout(opts: LayoutOptions): string {
       planSelect.addEventListener('change', updatePlanModules);
       updatePlanModules();
     }
+
+    document.querySelectorAll('.edit-domain-trigger-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-dep-id') || '';
+        const domain = btn.getAttribute('data-dep-domain') || '';
+        const allowed = btn.getAttribute('data-dep-allowed') || '';
+
+        const select = document.getElementById('deploymentSelect');
+        if (select) select.value = id;
+
+        const hiddenId = document.getElementById('deploymentIdHidden');
+        if (hiddenId) hiddenId.value = id;
+
+        const domainInput = document.getElementById('targetDomain');
+        if (domainInput) {
+          domainInput.value = domain;
+          domainInput.focus();
+        }
+
+        const allowedInput = document.getElementById('targetAllowedDomains');
+        if (allowedInput) {
+          allowedInput.value = allowed;
+        }
+
+        const form = document.getElementById('domainEditForm');
+        if (form) {
+          form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
+    });
+
+    const depSelect = document.getElementById('deploymentSelect');
+    if (depSelect) {
+      depSelect.addEventListener('change', () => {
+        const selectedId = depSelect.value;
+        const matchingBtn = document.querySelector('.edit-domain-trigger-btn[data-dep-id="' + selectedId + '"]');
+        if (matchingBtn) {
+          matchingBtn.click();
+        }
+      });
+    }
   </script>
 </body>
 </html>`.value;

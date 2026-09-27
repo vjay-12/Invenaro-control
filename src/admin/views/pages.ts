@@ -943,31 +943,118 @@ export function renderCustomerDetailPage(data: {
 
       <!-- Deployments Card -->
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
           <h2 class="card-title">Authorized Deployments</h2>
+          <span class="badge" style="background: #334155; color: #93c5fd; font-size: 11px;">
+            ${data.deployments.length} ${data.deployments.length === 1 ? "Deployment" : "Deployments"}
+          </span>
         </div>
         ${data.deployments.length === 0 ? html`
-          <p style="color: #94a3b8;">No deployment records found.</p>
+          <p style="color: #94a3b8; margin-bottom: 16px;">No deployment records found for this customer.</p>
         ` : html`
-          <table>
-            <thead>
-              <tr>
-                <th>Domain</th>
-                <th>Version</th>
-                <th>Last Seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${data.deployments.map((d: any) => html`
+          <div style="overflow-x: auto; margin-bottom: 16px;">
+            <table>
+              <thead>
                 <tr>
-                  <td class="mono">${d.domain}</td>
-                  <td>${d.appVersion || "-"}</td>
-                  <td>${d.lastSeenAt ? d.lastSeenAt.toISOString().slice(0, 16).replace("T", " ") : "Never"}</td>
+                  <th>Domain</th>
+                  <th>Version</th>
+                  <th>Last Seen</th>
+                  <th style="text-align: right;">Action</th>
                 </tr>
-              `)}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${data.deployments.map((d: any) => {
+                  const extraAllowed = (d.allowedDomains || []).filter((ad: string) => ad.toLowerCase() !== (d.domain || "").toLowerCase());
+                  return html`
+                    <tr>
+                      <td>
+                        <span class="mono" style="font-weight: 600; color: #38bdf8;">${d.domain}</span>
+                        ${extraAllowed.length > 0 ? html`
+                          <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">
+                            Allowed: <span class="mono">${extraAllowed.join(", ")}</span>
+                          </div>
+                        ` : ""}
+                      </td>
+                      <td>${d.appVersion || "-"}</td>
+                      <td style="font-size: 13px; color: #cbd5e1;">${d.lastSeenAt ? d.lastSeenAt.toISOString().slice(0, 16).replace("T", " ") : "Never"}</td>
+                      <td style="text-align: right;">
+                        <button 
+                          type="button" 
+                          class="btn btn-secondary edit-domain-trigger-btn" 
+                          style="padding: 2px 8px; font-size: 11px;"
+                          data-dep-id="${d.id}"
+                          data-dep-domain="${d.domain}"
+                          data-dep-allowed="${extraAllowed.join(", ")}"
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  `;
+                })}
+              </tbody>
+            </table>
+          </div>
         `}
+
+        <!-- Edit / Add Authorized Domain Form -->
+        <div style="padding-top: 16px; border-top: 1px solid #334155;">
+          <h3 style="font-size: 14px; font-weight: 600; color: #ffffff; margin-top: 0; margin-bottom: 12px;">
+            ${data.deployments.length > 0 ? "Edit Authorized Domain" : "Add Authorized Domain"}
+          </h3>
+          <form method="POST" action="/admin/customers/${c.id}/domain" id="domainEditForm">
+            <input type="hidden" name="_csrf" value="${data.csrfToken}">
+            ${data.deployments.length > 1 ? html`
+              <div class="form-group">
+                <label for="deploymentSelect">Target Deployment</label>
+                <select id="deploymentSelect" name="deploymentId" style="font-size: 13px;">
+                  ${data.deployments.map((d: any, idx: number) => html`
+                    <option value="${d.id}" ${idx === 0 ? "selected" : ""}>
+                      ${d.domain} ${d.appVersion ? `(${d.appVersion})` : ""}
+                    </option>
+                  `)}
+                </select>
+              </div>
+            ` : (data.deployments.length === 1 ? html`
+              <input type="hidden" id="deploymentIdHidden" name="deploymentId" value="${data.deployments[0].id}">
+            ` : "")}
+
+            <div class="form-group">
+              <label for="targetDomain">Primary Authorized Domain *</label>
+              <input 
+                type="text" 
+                id="targetDomain" 
+                name="domain" 
+                required 
+                value="${data.deployments[0]?.domain || ""}" 
+                placeholder="e.g. invenaro-api.vercel.app"
+                style="font-family: ui-monospace, monospace; font-size: 13px;"
+              >
+              <span style="font-size: 12px; color: #94a3b8; display: block; margin-top: 4px;">
+                Enter domain or host (e.g. <span class="mono" style="color: #38bdf8;">invenaro-api.vercel.app</span>). Protocols like <span class="mono" style="color: #94a3b8;">https://</span> will be automatically normalized.
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label for="targetAllowedDomains">Additional Allowed Domains <span style="font-size: 11px; font-weight: normal; color: #94a3b8;">(optional, comma-separated)</span></label>
+              <input 
+                type="text" 
+                id="targetAllowedDomains" 
+                name="allowedDomains" 
+                value="${(data.deployments[0]?.allowedDomains || []).filter((x: string) => x.toLowerCase() !== (data.deployments[0]?.domain || '').toLowerCase()).join(", ")}" 
+                placeholder="e.g. staging.myapp.com, localhost"
+                style="font-family: ui-monospace, monospace; font-size: 13px;"
+              >
+              <span style="font-size: 12px; color: #94a3b8; display: block; margin-top: 4px;">
+                Optional comma-separated list of secondary authorized hostnames/domains.
+              </span>
+            </div>
+
+            <button type="submit" class="btn btn-secondary">
+              ${data.deployments.length > 0 ? "Save Domain Settings" : "Add Authorized Domain"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
 
@@ -1009,8 +1096,8 @@ export function renderCustomerDetailPage(data: {
                     </span>
                   </td>
                   <td class="mono" style="font-size: 12px; color: #cbd5e1;">${lic.adminEmail || "None"}</td>
-                  <td style="font-size: 13px;">${lic.expiresAt.toISOString().slice(0, 10)}</td>
-                  <td style="font-size: 13px; color: #94a3b8;">${lic.createdAt.toISOString().slice(0, 16).replace("T", " ")}</td>
+                  <td style="font-size: 13px;">${lic.expiresAt ? lic.expiresAt.toISOString().slice(0, 10) : "-"}</td>
+                  <td style="font-size: 13px; color: #94a3b8;">${lic.createdAt ? lic.createdAt.toISOString().slice(0, 16).replace("T", " ") : "-"}</td>
                 </tr>
               `)}
             </tbody>
