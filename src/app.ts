@@ -14,7 +14,7 @@ export function createApp() {
   app.use(helmet());
 
   // Nonce generation middleware for /admin CSP
-  app.use("/admin", (req, res, next) => {
+  app.use("/admin", (req: Request, res: Response, next: NextFunction) => {
     const nonce = crypto.randomBytes(16).toString("base64");
     res.locals.cspNonce = nonce;
     req.cspNonce = nonce;
