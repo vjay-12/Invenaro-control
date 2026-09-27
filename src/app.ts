@@ -56,6 +56,11 @@ export function createApp() {
     res.type("text/plain").send("User-agent: *\nDisallow: /admin\nDisallow: /admin/\n");
   });
 
+  // Root route redirects to /admin
+  app.get("/", (_req: Request, res: Response) => {
+    res.redirect("/admin");
+  });
+
   // Mount public API routes
   app.use(healthRouter);
   app.use(jwksRouter);

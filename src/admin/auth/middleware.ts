@@ -222,108 +222,112 @@ export async function adminAuthMiddleware(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const clientIp = getClientIp(req);
-  const cookieName = getSessionCookieName(req);
-  const cookies = parseCookies(req.headers.cookie);
-  const rawToken = cookies[cookieName];
+  try {
+    const clientIp = getClientIp(req);
+    const cookieName = getSessionCookieName(req);
+    const cookies = parseCookies(req.headers.cookie);
+    const rawToken = cookies[cookieName];
 
-  // Set mandatory security headers on all /admin responses
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
-  res.setHeader("X-Robots-Tag", "noindex, nofollow");
-  res.setHeader("Referrer-Policy", "no-referrer");
+    // Set mandatory security headers on all /admin responses
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    res.setHeader("Referrer-Policy", "no-referrer");
 
-  // Origin check on POST requests
-  if (req.method === "POST" && !req.path.startsWith("/cron")) {
-    if (!verifyRequestOrigin(req)) {
-      res.status(403).send("Forbidden: Invalid request origin.");
+    // Origin check on POST requests
+    if (req.method === "POST" && !req.path.startsWith("/cron")) {
+      if (!verifyRequestOrigin(req)) {
+        res.status(403).send("Forbidden: Invalid request origin.");
+        return;
+      }
+    }
+
+    const path = req.path;
+
+    // Public unauthenticated routes
+    const isPublicAuthRoute =
+      path === "/login" ||
+      path.startsWith("/forgot") ||
+      path.startsWith("/reset") ||
+      path.startsWith("/cron");
+
+    if (!rawToken) {
+      if (isPublicAuthRoute) {
+        next();
+        return;
+      }
+      // Any other /admin route redirects to login
+      res.redirect("/admin/login");
       return;
     }
-  }
 
-  const path = req.path;
+    const validated = await validateAdminSession(rawToken);
 
-  // Public unauthenticated routes
-  const isPublicAuthRoute =
-    path === "/login" ||
-    path.startsWith("/forgot") ||
-    path.startsWith("/reset") ||
-    path.startsWith("/cron");
-
-  if (!rawToken) {
-    if (isPublicAuthRoute) {
-      next();
+    if (!validated) {
+      if (isPublicAuthRoute) {
+        next();
+        return;
+      }
+      res.redirect("/admin/login");
       return;
     }
-    // Any other /admin route redirects to login
-    res.redirect("/admin/login");
-    return;
-  }
 
-  const validated = await validateAdminSession(rawToken);
+    req.adminAuth = {
+      ...validated,
+      clientIp,
+      csrfToken: validated.session.csrfToken,
+    };
 
-  if (!validated) {
-    if (isPublicAuthRoute) {
-      next();
+    // CSRF verification on authenticated POST requests (excluding logout or public login)
+    if (req.method === "POST" && !isPublicAuthRoute) {
+      const submittedCsrf = req.body?._csrf;
+      if (!submittedCsrf || submittedCsrf !== validated.session.csrfToken) {
+        res.status(403).send("Forbidden: Invalid CSRF token.");
+        return;
+      }
+    }
+
+    const { session, admin } = validated;
+
+    // Stage: pending_2fa enforcement
+    if (session.stage === "pending_2fa") {
+      if (path === "/login/2fa" || path === "/logout") {
+        next();
+        return;
+      }
+      res.redirect("/admin/login/2fa");
       return;
     }
-    res.redirect("/admin/login");
-    return;
-  }
 
-  req.adminAuth = {
-    ...validated,
-    clientIp,
-    csrfToken: validated.session.csrfToken,
-  };
-
-  // CSRF verification on authenticated POST requests (excluding logout or public login)
-  if (req.method === "POST" && !isPublicAuthRoute) {
-    const submittedCsrf = req.body?._csrf;
-    if (!submittedCsrf || submittedCsrf !== validated.session.csrfToken) {
-      res.status(403).send("Forbidden: Invalid CSRF token.");
+    // Force password change flow
+    if (admin.mustChangePassword) {
+      if (path === "/setup/password" || path === "/setup/2fa" || path === "/logout") {
+        next();
+        return;
+      }
+      res.redirect("/admin/setup/password");
       return;
     }
-  }
 
-  const { session, admin } = validated;
-
-  // Stage: pending_2fa enforcement
-  if (session.stage === "pending_2fa") {
-    if (path === "/login/2fa" || path === "/logout") {
-      next();
+    // Mandatory 2FA enrollment flow
+    if (!admin.totpEnabled) {
+      if (path === "/setup/2fa" || path === "/logout") {
+        next();
+        return;
+      }
+      res.redirect("/admin/setup/2fa");
       return;
     }
-    res.redirect("/admin/login/2fa");
-    return;
-  }
 
-  // Force password change flow
-  if (admin.mustChangePassword) {
-    if (path === "/setup/password" || path === "/setup/2fa" || path === "/logout") {
-      next();
+    // Logged-in admin trying to access login/forgot -> redirect to dashboard
+    if (path === "/login" || path === "/login/2fa" || path === "/forgot" || path.startsWith("/reset")) {
+      res.redirect("/admin");
       return;
     }
-    res.redirect("/admin/setup/password");
-    return;
-  }
 
-  // Mandatory 2FA enrollment flow
-  if (!admin.totpEnabled) {
-    if (path === "/setup/2fa" || path === "/logout") {
-      next();
-      return;
-    }
-    res.redirect("/admin/setup/2fa");
-    return;
+    next();
+  } catch (err) {
+    next(err);
   }
-
-  // Logged-in admin trying to access login/forgot -> redirect to dashboard
-  if (path === "/login" || path === "/login/2fa" || path === "/forgot" || path.startsWith("/reset")) {
-    res.redirect("/admin");
-    return;
-  }
-
-  next();
 }
