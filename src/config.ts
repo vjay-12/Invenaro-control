@@ -31,7 +31,19 @@ const envSchema = z.object({
 
   // Admin UI & Authentication
   ADMIN_EMAIL: z.string().email().optional(),
-  APP_BASE_URL: z.string().optional().default("http://localhost:3000"),
+  APP_BASE_URL: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (val && !val.includes("localhost")) return val;
+      if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+        return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+      }
+      if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`;
+      }
+      return val || "http://localhost:3000";
+    }),
   ADMIN_ENC_KEY: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   ADMIN_SESSION_IDLE_MINUTES: z.coerce.number().positive().default(30),
