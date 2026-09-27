@@ -56,19 +56,19 @@ export function parseCookies(header: string | undefined): Record<string, string>
 }
 
 export function setSessionCookie(res: Response, req: Request, token: string) {
-  const isSecure = getConfig().NODE_ENV === "production" || isRequestSecure(req);
+  const isSecure = process.env.NODE_ENV === "production" || isRequestSecure(req);
   const cookieName = getSessionCookieName(isSecure);
-  const config = getConfig();
+  const hours = Number(process.env.ADMIN_SESSION_ABSOLUTE_HOURS) || 12;
   const options = buildSessionCookieOptions({
     isProductionOrSecure: isSecure,
-    maxAgeMs: config.ADMIN_SESSION_ABSOLUTE_HOURS * 3600 * 1000,
+    maxAgeMs: hours * 3600 * 1000,
   });
 
   res.cookie(cookieName, token, options);
 }
 
 export function clearSessionCookie(res: Response, req: Request) {
-  const isSecure = getConfig().NODE_ENV === "production" || isRequestSecure(req);
+  const isSecure = process.env.NODE_ENV === "production" || isRequestSecure(req);
   const cookieName = getSessionCookieName(isSecure);
   const options = buildSessionCookieOptions({
     isProductionOrSecure: isSecure,

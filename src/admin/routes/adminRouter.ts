@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import crypto from "node:crypto";
 import { prisma } from "../../db.js";
@@ -80,7 +80,34 @@ import {
   renderAccountPage,
 } from "../views/pages.js";
 
-export const adminRouter = Router();
+function createAsyncRouter(): Router {
+  const router = Router();
+  const methods = ["get", "post", "put", "delete", "patch"] as const;
+  for (const method of methods) {
+    const original = (router[method] as (...args: unknown[]) => unknown).bind(router);
+    (router as any)[method] = (path: unknown, ...handlers: unknown[]) => {
+      const wrappedHandlers = handlers.map((h) => {
+        if (typeof h === "function") {
+          return (req: Request, res: Response, next: NextFunction) => {
+            try {
+              const result = (h as any)(req, res, next);
+              if (result && typeof result.catch === "function") {
+                result.catch((err: unknown) => next(err));
+              }
+            } catch (syncErr) {
+              next(syncErr);
+            }
+          };
+        }
+        return h;
+      });
+      return original(path, ...wrappedHandlers);
+    };
+  }
+  return router;
+}
+
+export const adminRouter = createAsyncRouter();
 
 // Apply admin auth and stage enforcement middleware to all /admin routes
 adminRouter.use(adminAuthMiddleware);
